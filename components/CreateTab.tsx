@@ -122,6 +122,106 @@ const ART_STYLES: ArtStyle[] = [
     promptPrefix: 'Cyberpunk futuristic city street, rain-slicked asphalt reflecting vibrant neon cyan and magenta lights, misty atmosphere and holographic billboards',
     badge: 'Futuristic',
     imageUrl: '/src/assets/images/cyberpunk_neon_preview_1790002636371.jpg'
+  },
+  {
+    id: 'logo_designer',
+    name: 'Logo Designer',
+    greekName: 'Σχεδιαστής Logo',
+    category: 'templates',
+    tagline: 'Professional minimalist vector logo & corporate identity',
+    promptPrefix: 'Professional minimalist vector logo, clean geometric lines, high contrast, corporate brand aesthetic, solid background',
+    badge: 'Design',
+    imageUrl: '/src/assets/images/logo_designer_style_1790004650259.jpg'
+  },
+  {
+    id: 'avatar_3d',
+    name: '3D Avatar',
+    greekName: '3D Avatar',
+    category: '3d',
+    tagline: 'Expressive 3D animated character avatar render',
+    promptPrefix: 'A cute 3D animated character avatar, stylized features, Pixar and Disney aesthetic, expressive eyes, subsurface scattering and soft cinematic lighting',
+    badge: 'Avatar',
+    imageUrl: '/src/assets/images/avatar_3d_style_1790004661607.jpg'
+  },
+  {
+    id: 'blueprint',
+    name: 'Technical Blueprint',
+    greekName: 'Blueprint',
+    category: 'templates',
+    tagline: 'Detailed architectural & engineering blueprint',
+    promptPrefix: 'A detailed technical architectural blueprint, white lines on deep blue grid background, annotations, precise engineering drawing aesthetic',
+    badge: 'Technical',
+    imageUrl: '/src/assets/images/blueprint_style_1790004674024.jpg'
+  },
+  {
+    id: 'mini_me',
+    name: 'Mini Me',
+    greekName: 'Mini Me',
+    category: 'photo',
+    tagline: 'Hyper-realistic tilt-shift miniature figurine',
+    promptPrefix: 'A tiny tilt-shift miniature figurine in a detailed diorama, hyper-realistic textures, shallow depth of field, macro photography aesthetic',
+    badge: 'Miniature',
+    imageUrl: '/src/assets/images/mini_me_style_1790004684866.jpg'
+  },
+  {
+    id: 'chibi',
+    name: 'Chibi Art',
+    greekName: 'Chibi',
+    category: 'anime',
+    tagline: 'Adorable kawaii chibi character with oversized head',
+    promptPrefix: 'Adorable chibi character illustration, oversized head, small body, vibrant pastel colors, clean vector lines, kawaii Japanese aesthetic',
+    badge: 'Kawaii',
+    imageUrl: '/src/assets/images/chibi_style_1790004695023.jpg'
+  },
+  {
+    id: 'comic',
+    name: 'Comic Book',
+    greekName: 'Comic',
+    category: 'vintage',
+    tagline: 'Dynamic superhero comic panel with halftone dots',
+    promptPrefix: 'Dynamic comic book panel illustration, bold ink lines, halftone dots, Ben-Day dots, vibrant primary colors, dramatic action aesthetic',
+    badge: 'Comic',
+    imageUrl: '/src/assets/images/comic_style_1790004704676.jpg'
+  },
+  {
+    id: 'wanted_poster',
+    name: 'Wanted Poster',
+    greekName: 'Wanted Poster',
+    category: 'vintage',
+    tagline: 'Old west vintage weathered "Wanted" poster',
+    promptPrefix: 'Old west style wanted poster, sepia tone, weathered vintage paper texture, charcoal sketch portrait, bold WANTED text',
+    badge: 'Wild West',
+    imageUrl: '/src/assets/images/wanted_poster_style_1790004715274.jpg'
+  },
+  {
+    id: 'bit_8',
+    name: '8-Bit Retro',
+    greekName: '8-Bit',
+    category: 'vintage',
+    tagline: 'Classic 8-bit pixel art & retro game landscape',
+    promptPrefix: 'Classic 8-bit pixel art, retro video game aesthetic, limited color palette, visible pixels, nostalgic console graphics',
+    badge: 'Pixel Art',
+    imageUrl: '/src/assets/images/bit_8_style_1790004725797.jpg'
+  },
+  {
+    id: 'infographic',
+    name: 'Infographic Style',
+    greekName: 'Infographic',
+    category: 'templates',
+    tagline: 'Clean modern data visualization & analysis icons',
+    promptPrefix: 'A clean modern data visualization infographic, balanced charts and icons, minimalist professional aesthetic, clear typography',
+    badge: 'Analysis',
+    imageUrl: '/src/assets/images/infographic_style_1790004739598.jpg'
+  },
+  {
+    id: 'statue',
+    name: 'Classical Statue',
+    greekName: 'Άγαλμα',
+    category: 'vintage',
+    tagline: 'Timeless marble sculpture with detailed stone texture',
+    promptPrefix: 'A classical marble statue portrait, museum lighting, soft shadows, detailed stone texture, elegant renaissance aesthetic',
+    badge: 'Classical',
+    imageUrl: '/src/assets/images/statue_style_1790004750303.jpg'
   }
 ];
 
@@ -137,7 +237,7 @@ export const CreateTab: React.FC<CreateTabProps> = ({
   const [selectedStyle, setSelectedStyle] = useState<ArtStyle | null>(null);
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '9:16' | '16:9' | '4:3' | '3:4'>('1:1');
   const [batchCount, setBatchCount] = useState<number>(1);
-  const [imageSize, setImageSize] = useState<'512px' | '1K' | '2K'>('1K');
+  const [quality, setQuality] = useState<'Standard' | 'HD' | 'Ultra Pro'>('HD');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'styles' | 'gallery'>('styles');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -288,7 +388,7 @@ export const CreateTab: React.FC<CreateTabProps> = ({
           aspectRatio,
           styleName: selectedStyle?.name,
           stylePrompt: selectedStyle?.promptPrefix,
-          imageSize
+          quality
         };
 
         const urls = await generateBatchImages(options, batchCount);
@@ -719,18 +819,18 @@ export const CreateTab: React.FC<CreateTabProps> = ({
 
             {/* Quality Selector */}
             <div className="hidden xs:flex items-center space-x-1.5">
-              <span className="text-[11px] text-[var(--text-secondary)]">Size:</span>
-              {(['1K', '2K'] as const).map(sz => (
+              <span className="text-[11px] text-[var(--text-secondary)]">Quality:</span>
+              {(['Standard', 'HD', 'Ultra Pro'] as const).map(q => (
                 <button
-                  key={sz}
-                  onClick={() => setImageSize(sz)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-mono transition-all ${
-                    imageSize === sz
-                      ? 'bg-emerald-600 text-white font-semibold'
+                  key={q}
+                  onClick={() => setQuality(q)}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${
+                    quality === q
+                      ? 'bg-emerald-600 text-white shadow-sm scale-105'
                       : 'text-[var(--text-secondary)] hover:text-white bg-[var(--card-bg)]'
                   }`}
                 >
-                  {sz}
+                  {q}
                 </button>
               ))}
             </div>

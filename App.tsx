@@ -68,6 +68,25 @@ const App: React.FC = () => {
 
   // Export & Download Chat Modal State
   const [downloadingSession, setDownloadingSession] = useState<ChatSession | null>(null);
+  const [nextChatExpiration, setNextChatExpiration] = useState<number | null>(null);
+
+  // Periodic Cleanup for Timed Chats
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      const currentSessions = getStoredSessions();
+      const expiredSessions = currentSessions.filter(s => s.expiresAt && s.expiresAt < now);
+      
+      if (expiredSessions.length > 0) {
+        expiredSessions.forEach(s => {
+          deleteStoredSession(s.id);
+        });
+        refreshData();
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   const handleOpenDownloadChat = (sessionToDownload?: ChatSession) => {
     if (sessionToDownload) {
@@ -539,6 +558,19 @@ const App: React.FC = () => {
       const newId = 'session_' + Date.now();
       currentSessionIdRef.current = newId;
       setCurrentSessionId(newId);
+      
+      // Save initial session state with expiration if set
+      const newSession: ChatSession = {
+        id: newId,
+        modelId: activeModelId,
+        title: effectivePrompt.slice(0, 40),
+        messages: [],
+        updatedAt: Date.now(),
+        isIncognito,
+        expiresAt: nextChatExpiration || undefined
+      };
+      saveStoredSession(newSession);
+      setNextChatExpiration(null); // Clear for next chat
     }
 
     const modelMsgId = (Date.now() + 1).toString();
@@ -613,7 +645,8 @@ const App: React.FC = () => {
       const imageUrl = await generateSingleImage({
         prompt: promptText.trim(),
         stylePrompt: stylePrompt,
-        aspectRatio: aspectRatio as any
+        aspectRatio: aspectRatio as any,
+        quality: 'HD'
       });
 
       const finalMessages = updatedHistory.map(msg => {
@@ -982,11 +1015,15 @@ const App: React.FC = () => {
   };
 
   // --- New Chat Handler ---
-  const handleNewChat = () => {
+  const handleNewChat = (expiresInMs?: number | null) => {
     currentSessionIdRef.current = null;
     setCurrentSessionId(null);
     setMessages([]);
     setView('chat');
+    
+    if (expiresInMs !== undefined) {
+      setNextChatExpiration(expiresInMs ? Date.now() + expiresInMs : null);
+    }
   };
 
   // --- Handlers ---
@@ -1127,6 +1164,7 @@ const App: React.FC = () => {
         }}
         onOpenDocumentStudio={() => handleOpenDocumentStudio()}
         onOpenArchiveStudio={() => handleOpenArchiveStudio()}
+        activeExpiration={nextChatExpiration ? nextChatExpiration - Date.now() : null}
       />
 
       {/* Main Content */}
@@ -1198,6 +1236,7 @@ const App: React.FC = () => {
             isIncognito={isIncognito}
             onToggleIncognito={handleToggleIncognito}
             currentSessionTitle={currentSessionTitle}
+            expiresAt={currentSession?.expiresAt}
             onRenameCurrentSession={handleRenameCurrentSession}
             onForkCurrentSession={handleForkCurrentSession}
             onForkFromMessage={handleForkFromMessage}

@@ -117,7 +117,7 @@ export interface GenerateImageOptions {
   aspectRatio?: '1:1' | '9:16' | '16:9' | '4:3' | '3:4';
   styleName?: string;
   stylePrompt?: string;
-  imageSize?: '512px' | '1K' | '2K';
+  quality?: 'Standard' | 'HD' | 'Ultra Pro';
 }
 
 export const generateSingleImage = async (
@@ -127,7 +127,7 @@ export const generateSingleImage = async (
   let prompt = '';
   let aspectRatio: '1:1' | '9:16' | '16:9' | '4:3' | '3:4' = '1:1';
   let stylePrompt: string | undefined;
-  let imageSize: '512px' | '1K' | '2K' = '1K';
+  let quality: 'Standard' | 'HD' | 'Ultra Pro' = 'HD';
 
   if (typeof optionsOrPrompt === 'string') {
     prompt = optionsOrPrompt.trim();
@@ -135,18 +135,25 @@ export const generateSingleImage = async (
       if (extraOptions.aspectRatio) aspectRatio = extraOptions.aspectRatio;
       if (extraOptions.stylePrompt) stylePrompt = extraOptions.stylePrompt;
       else if (extraOptions.style) stylePrompt = extraOptions.style;
-      if (extraOptions.imageSize) imageSize = extraOptions.imageSize;
+      if (extraOptions.quality) quality = extraOptions.quality;
     }
   } else if (typeof optionsOrPrompt === 'object' && optionsOrPrompt !== null) {
     prompt = (optionsOrPrompt.prompt || '').trim();
     if (optionsOrPrompt.aspectRatio) aspectRatio = optionsOrPrompt.aspectRatio;
     if (optionsOrPrompt.stylePrompt) stylePrompt = optionsOrPrompt.stylePrompt;
-    if (optionsOrPrompt.imageSize) imageSize = optionsOrPrompt.imageSize;
+    if (optionsOrPrompt.quality) quality = optionsOrPrompt.quality;
   }
 
   if (!prompt) {
     throw new Error("Prompt is required for image generation.");
   }
+
+  const qualityToSizeMap: Record<string, string> = {
+    'Standard': '512px',
+    'HD': '1K',
+    'Ultra Pro': '2K'
+  };
+  const internalSize = qualityToSizeMap[quality] || '1K';
 
   const fullPrompt = stylePrompt ? `${stylePrompt}: ${prompt}` : prompt;
 
@@ -158,7 +165,7 @@ export const generateSingleImage = async (
       config: {
         imageConfig: {
           aspectRatio: aspectRatio as any,
-          imageSize: imageSize as any,
+          imageSize: internalSize as any,
         }
       }
     });

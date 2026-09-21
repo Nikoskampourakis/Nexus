@@ -161,6 +161,7 @@ export interface ChatSession {
   forkedFromSessionId?: string;
   folderId?: string;
   aiSummary?: string;
+  expiresAt?: number; // Timestamp when the chat should be deleted/archived
 }
 
 export interface AppTheme {

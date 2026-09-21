@@ -98,8 +98,9 @@ interface SidebarProps {
 
   isIncognito?: boolean;
   onToggleIncognito?: () => void;
-  onNewChat?: () => void;
+  onNewChat?: (expiresInMs?: number | null) => void;
   onOpenStats?: () => void;
+  activeExpiration?: number | null;
 }
 
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'images';
@@ -126,9 +127,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onToggle,
   onNewChat,
-  onOpenStats
+  onOpenStats,
+  activeExpiration
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [showExpirationMenu, setShowExpirationMenu] = useState(false);
+
+  const EXPIRATION_OPTIONS = [
+    { label: 'Off', value: null },
+    { label: '10 Min', value: 10 * 60 * 1000 },
+    { label: '1 Hour', value: 60 * 60 * 1000 },
+    { label: '1 Day', value: 24 * 60 * 60 * 1000 },
+    { label: '1 Week', value: 7 * 24 * 60 * 60 * 1000 },
+    { label: '1 Month', value: 30 * 24 * 60 * 60 * 1000 },
+    { label: '3 Months', value: 90 * 24 * 60 * 60 * 1000 },
+  ];
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [showFiltersManual, setShowFiltersManual] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
@@ -692,19 +705,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="flex items-center space-x-1">
             {onNewChat && (
-              <button
-                onClick={() => {
-                  onNewChat();
-                  onChangeView('chat');
-                  if (window.innerWidth < 1024) onToggle();
-                }}
-                className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--card-bg)] hover:bg-[var(--background)] text-[var(--text-secondary)] hover:text-white transition-all shadow-sm"
-                title="New Chat"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
+              <div className="flex items-center space-x-0.5">
+                <button
+                  onClick={() => {
+                    onNewChat();
+                    onChangeView('chat');
+                    if (window.innerWidth < 1024) onToggle();
+                  }}
+                  className={`p-1.5 rounded-l-lg border border-[var(--border-color)] ${activeExpiration ? 'bg-amber-600/20 border-amber-500/30 text-amber-400' : 'bg-[var(--card-bg)] text-[var(--text-secondary)]'} hover:bg-[var(--background)] hover:text-white transition-all shadow-sm`}
+                  title={activeExpiration ? `New Timed Chat (Expires in ${EXPIRATION_OPTIONS.find(o => o.value === activeExpiration)?.label})` : "New Chat"}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExpirationMenu(!showExpirationMenu)}
+                    className={`p-1.5 rounded-r-lg border-y border-r border-[var(--border-color)] ${activeExpiration ? 'bg-amber-600/30 border-amber-500/40 text-amber-300' : 'bg-[var(--card-bg)] text-[var(--text-secondary)]'} hover:text-white transition-all`}
+                    title="Set Chat Expiration"
+                  >
+                    <Activity className={`w-4 h-4 ${activeExpiration ? 'animate-pulse' : ''}`} />
+                  </button>
+                  
+                  {showExpirationMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-40 bg-[var(--sidebar-bg)] border border-[var(--border-color)] rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                      <div className="p-2 border-b border-[var(--border-color)] bg-[var(--card-bg)]/50">
+                        <span className="text-[10px] font-bold uppercase text-[var(--text-secondary)]">Auto-Delete Timer</span>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        {EXPIRATION_OPTIONS.map(opt => (
+                          <button
+                            key={opt.label}
+                            onClick={() => {
+                              onNewChat(opt.value);
+                              setShowExpirationMenu(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs hover:bg-[var(--card-bg)] transition-colors flex items-center justify-between ${
+                              activeExpiration === opt.value ? 'text-amber-400 font-bold' : 'text-[var(--text-secondary)]'
+                            }`}
+                          >
+                            <span>{opt.label}</span>
+                            {activeExpiration === opt.value && <Check className="w-3 h-3" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
             <button
               onClick={onToggle}

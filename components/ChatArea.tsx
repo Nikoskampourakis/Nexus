@@ -135,6 +135,7 @@ interface ChatAreaProps {
   // Document & Presentation Features
   onDownloadChat?: () => void;
   isForked?: boolean;
+  expiresAt?: number;
 }
 
 // --- Helper Components ---
@@ -422,11 +423,46 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onSendImageToCreateStudio,
   onDownloadChat,
   isForked = false,
+  expiresAt,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+
+  const [timeLeft, setTimeLeft] = useState<string | null>(null);
+
+  // Countdown timer for expired chats
+  useEffect(() => {
+    if (!expiresAt) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = expiresAt - now;
+
+      if (diff <= 0) {
+        setTimeLeft('Expired');
+        return;
+      }
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+
+      if (days > 0) setTimeLeft(`${days}d ${hours % 24}h`);
+      else if (hours > 0) setTimeLeft(`${hours}h ${minutes % 60}m`);
+      else if (minutes > 0) setTimeLeft(`${minutes}m ${seconds}s`);
+      else setTimeLeft(`${seconds}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
 
   const [pendingAttachment, setPendingAttachment] = useState<{ mimeType: string, data: string } | null>(null);
   const [pendingArchive, setPendingArchive] = useState<ArchivePackage | null>(null);
@@ -1280,6 +1316,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     </span>
                   )}
                 </div>
+                {timeLeft && (
+                  <div className="flex items-center space-x-1 mt-0.5 animate-pulse">
+                    <Clock className="w-2.5 h-2.5 text-amber-500" />
+                    <span className="text-[10px] font-bold text-amber-500 uppercase tracking-tight">Expires: {timeLeft}</span>
+                  </div>
+                )}
               </div>
 
               {/* Subtle Token Indicator in Header */}
