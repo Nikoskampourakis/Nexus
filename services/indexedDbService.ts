@@ -2,7 +2,8 @@
 const DB_NAME = 'nexus_media_db';
 const IMAGE_STORE = 'images';
 const MESSAGE_STORE = 'messages';
-const DB_VERSION = 2;
+const METADATA_STORE = 'metadata';
+const DB_VERSION = 3;
 
 export const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -14,6 +15,9 @@ export const initDB = (): Promise<IDBDatabase> => {
       }
       if (!db.objectStoreNames.contains(MESSAGE_STORE)) {
         db.createObjectStore(MESSAGE_STORE, { keyPath: 'sessionId' });
+      }
+      if (!db.objectStoreNames.contains(METADATA_STORE)) {
+        db.createObjectStore(METADATA_STORE, { keyPath: 'key' });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -84,5 +88,27 @@ export const deleteSessionMessages = async (sessionId: string) => {
     store.delete(sessionId);
     transaction.oncomplete = () => resolve(true);
     transaction.onerror = () => reject(transaction.error);
+  });
+};
+
+export const storeMetadata = async (key: string, data: any) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(METADATA_STORE, 'readwrite');
+    const store = transaction.objectStore(METADATA_STORE);
+    store.put({ key, data, updatedAt: Date.now() });
+    transaction.oncomplete = () => resolve(true);
+    transaction.onerror = () => reject(transaction.error);
+  });
+};
+
+export const getMetadata = async (key: string): Promise<any | null> => {
+  const db = await initDB();
+  return new Promise((resolve) => {
+    const transaction = db.transaction(METADATA_STORE, 'readonly');
+    const store = transaction.objectStore(METADATA_STORE);
+    const request = store.get(key);
+    request.onsuccess = () => resolve(request.result?.data || null);
+    request.onerror = () => resolve(null);
   });
 };

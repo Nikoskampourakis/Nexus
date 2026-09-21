@@ -51,7 +51,7 @@ const ART_STYLES: ArtStyle[] = [
     tagline: 'Minimalist clean line art & graphite pencil portrait',
     promptPrefix: 'A clean, minimalist fine-line art pencil sketch illustration, crisp black and white line work with soft graphite shading',
     badge: 'Popular',
-    imageUrl: '/src/assets/images/sketch_style_preview_1789998673585.jpg'
+    imageUrl: '/src/assets/images/sketch_style_preview_1790002536265.jpg'
   },
   {
     id: '80s_flashback',
@@ -61,7 +61,7 @@ const ART_STYLES: ArtStyle[] = [
     tagline: 'Authentic 1980s retro film photo, neon & denim aesthetic',
     promptPrefix: 'Authentic 1980s color flash photography, retro film grain, vintage color palette, vibrant 80s fashion and warm nostalgic lighting',
     badge: 'Retro',
-    imageUrl: '/src/assets/images/retro_80s_preview_1789998684545.jpg'
+    imageUrl: '/src/assets/images/retro_80s_preview_1790002550255.jpg'
   },
   {
     id: 'stickers',
@@ -71,7 +71,7 @@ const ART_STYLES: ArtStyle[] = [
     tagline: 'Die-cut vibrant graphic stickers with white borders',
     promptPrefix: 'A die-cut vibrant sticker graphic with a clean white sticker contour border, cute modern vector style, isolated on clean background',
     badge: 'Graphic',
-    imageUrl: '/src/assets/images/sticker_style_preview_1789998695825.jpg'
+    imageUrl: '/src/assets/images/sticker_style_preview_1790002565579.jpg'
   },
   {
     id: 'caricature_3d',
@@ -81,7 +81,7 @@ const ART_STYLES: ArtStyle[] = [
     tagline: 'High-fidelity Pixar & Disney 3D animated character render',
     promptPrefix: 'A high-detail 3D animated film character render, Pixar and Disney aesthetic, vibrant stylized features, expressive eyes, subsurface scattering and volumetric cinematic lighting',
     badge: '3D Render',
-    imageUrl: '/src/assets/images/pixar_style_preview_1789998706663.jpg'
+    imageUrl: '/src/assets/images/pixar_style_preview_1790002579058.jpg'
   },
   {
     id: 'anime',
@@ -91,7 +91,7 @@ const ART_STYLES: ArtStyle[] = [
     tagline: 'Studio-quality modern Japanese anime & manga artwork',
     promptPrefix: 'High-budget modern anime illustration, Makoto Shinkai style, vibrant saturated colors, breathtaking atmospheric lighting, meticulous cel shading and dynamic composition',
     badge: 'Anime',
-    imageUrl: '/src/assets/images/anime_style_preview_1789998717253.jpg'
+    imageUrl: '/src/assets/images/anime_style_preview_1790002593352.jpg'
   },
   {
     id: 'underwater',
@@ -101,7 +101,7 @@ const ART_STYLES: ArtStyle[] = [
     tagline: 'Ethereal underwater lighting & aquatic sunlight caustics',
     promptPrefix: 'Ethereal underwater photography, natural sunlight caustic reflections dancing across the scene, crystalline turquoise water, tiny bubbles and weightless serenity',
     badge: 'Atmosphere',
-    imageUrl: '/src/assets/images/underwater_style_preview_1789998729815.jpg'
+    imageUrl: '/src/assets/images/underwater_style_preview_1790002607322.jpg'
   },
   {
     id: 'cinematic_photo',
@@ -111,7 +111,7 @@ const ART_STYLES: ArtStyle[] = [
     tagline: 'High-end cinema portrait with shallow depth of field & bokeh',
     promptPrefix: 'Cinematic 85mm prime lens photograph, f/1.4 aperture, creamy bokeh, hyper-realistic skin texture and high-end studio rim lighting',
     badge: 'Photo',
-    imageUrl: '/src/assets/images/cinematic_bokeh_preview_1789998740192.jpg'
+    imageUrl: '/src/assets/images/cinematic_bokeh_preview_1790002622540.jpg'
   },
   {
     id: 'cyberpunk',
@@ -121,7 +121,7 @@ const ART_STYLES: ArtStyle[] = [
     tagline: 'Futuristic night rain, neon cyan & magenta street glow',
     promptPrefix: 'Cyberpunk futuristic city street, rain-slicked asphalt reflecting vibrant neon cyan and magenta lights, misty atmosphere and holographic billboards',
     badge: 'Futuristic',
-    imageUrl: '/src/assets/images/cyberpunk_neon_preview_1789998751330.jpg'
+    imageUrl: '/src/assets/images/cyberpunk_neon_preview_1790002636371.jpg'
   }
 ];
 
@@ -132,17 +132,6 @@ export const CreateTab: React.FC<CreateTabProps> = ({
   onBackToChat,
   initialImage
 }) => {
-  // Auto-select relevant grid based on tool selection to guide users
-  useEffect(() => {
-    if (editorTool === 'move_object') {
-      setGridOverlay('grid_4x4');
-    } else if (editorTool === 'perspective_shift') {
-      setGridOverlay('perspective');
-    } else if (editorTool === 'remove_object') {
-      setGridOverlay('none');
-    }
-  }, [editorTool]);
-
   // Main State
   const [prompt, setPrompt] = useState(initialImage?.prompt || '');
   const [selectedStyle, setSelectedStyle] = useState<ArtStyle | null>(null);
@@ -153,14 +142,6 @@ export const CreateTab: React.FC<CreateTabProps> = ({
   const [activeTab, setActiveTab] = useState<'styles' | 'gallery'>('styles');
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Staged Upload for Direct Creation/Editing
-  const [stagedImage, setStagedImage] = useState<{ url: string; mimeType: string } | null>(
-    initialImage ? { url: initialImage.url, mimeType: 'image/png' } : null
-  );
-
-  // Library / Creations State
-  const [creations, setCreations] = useState<GeneratedImageItem[]>([]);
 
   // Editor Modal State
   const [editingItem, setEditingItem] = useState<GeneratedImageItem | null>(null);
@@ -177,6 +158,25 @@ export const CreateTab: React.FC<CreateTabProps> = ({
   const [gridOpacity, setGridOpacity] = useState<number>(0.65);
   const [gridColor, setGridColor] = useState<'cyan' | 'amber' | 'emerald' | 'white' | 'purple'>('cyan');
 
+  // Auto-select relevant grid based on tool selection to guide users
+  useEffect(() => {
+    if (editorTool === 'move_object') {
+      setGridOverlay('grid_4x4');
+    } else if (editorTool === 'perspective_shift') {
+      setGridOverlay('perspective');
+    } else if (editorTool === 'remove_object') {
+      setGridOverlay('none');
+    }
+  }, [editorTool]);
+
+  // Staged Upload for Direct Creation/Editing
+  const [stagedImage, setStagedImage] = useState<{ url: string; mimeType: string } | null>(
+    initialImage ? { url: initialImage.url, mimeType: 'image/png' } : null
+  );
+
+  // Library / Creations State
+  const [creations, setCreations] = useState<GeneratedImageItem[]>([]);
+
   // Speech Recognition State
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -186,8 +186,9 @@ export const CreateTab: React.FC<CreateTabProps> = ({
 
   // Load existing gallery on mount
   useEffect(() => {
-    const saved = getStoredCreations();
-    setCreations(saved);
+    getStoredCreations().then(saved => {
+      setCreations(saved);
+    });
   }, []);
 
   // Voice Input Speech Recognition Setup
@@ -275,7 +276,7 @@ export const CreateTab: React.FC<CreateTabProps> = ({
           editNote: prompt.trim()
         };
 
-        const updated = saveStoredCreation(newCreation);
+        const updated = await saveStoredCreation(newCreation);
         trackImageCreation();
         setCreations(updated);
         setEditingItem(newCreation);
@@ -304,7 +305,7 @@ export const CreateTab: React.FC<CreateTabProps> = ({
 
         let currentList = creations;
         for (const item of newItems) {
-          currentList = saveStoredCreation(item);
+          currentList = await saveStoredCreation(item);
           trackImageCreation();
         }
         setCreations(currentList);
@@ -355,7 +356,7 @@ export const CreateTab: React.FC<CreateTabProps> = ({
         editNote: note
       };
 
-      const updatedList = saveStoredCreation(updatedItem);
+      const updatedList = await saveStoredCreation(updatedItem);
       trackImageCreation();
       setCreations(updatedList);
       setEditingItem(updatedItem);
@@ -386,9 +387,9 @@ export const CreateTab: React.FC<CreateTabProps> = ({
     }
   };
 
-  const handleDelete = (id: string, e?: React.MouseEvent) => {
+  const handleDelete = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const updated = deleteStoredCreation(id);
+    const updated = await deleteStoredCreation(id);
     setCreations(updated);
     if (editingItem?.id === id) {
       setEditingItem(null);

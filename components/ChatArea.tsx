@@ -1,4 +1,59 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { 
+  Plus, 
+  PlusCircle, 
+  Send, 
+  StopCircle, 
+  Search, 
+  Sparkles, 
+  Trash2, 
+  FileText, 
+  Image as ImageIcon, 
+  Settings, 
+  Menu, 
+  X, 
+  Zap, 
+  Activity, 
+  Mic, 
+  MicOff, 
+  Copy, 
+  RotateCcw, 
+  MoreVertical, 
+  Clock, 
+  User, 
+  Bot, 
+  Download, 
+  Share2, 
+  ExternalLink, 
+  Code, 
+  BrainCircuit, 
+  Glasses, 
+  Dna, 
+  ChevronDown, 
+  ChevronUp, 
+  ChevronLeft, 
+  ChevronRight, 
+  Maximize2, 
+  Type, 
+  Check, 
+  List, 
+  FileEdit, 
+  Briefcase, 
+  FileCode, 
+  Terminal, 
+  Wand2, 
+  Globe, 
+  Shield, 
+  ShieldAlert, 
+  EyeOff, 
+  Eye,
+  Camera,
+  Archive,
+  Play,
+  Volume2,
+  File as FileIcon,
+  Package
+} from 'lucide-react';
 import { Message, VirtualModel, ShortcutItem, FormattingActionType } from '../types';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -79,6 +134,7 @@ interface ChatAreaProps {
 
   // Document & Presentation Features
   onDownloadChat?: () => void;
+  isForked?: boolean;
 }
 
 // --- Helper Components ---
@@ -365,6 +421,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onOpenConnectTab,
   onSendImageToCreateStudio,
   onDownloadChat,
+  isForked = false,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1188,7 +1245,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         {/* Single Unified Header (Mobile-First) */}
         <header className="flex-none h-14 border-b border-[var(--border-color)] flex items-center justify-between px-3 sm:px-4 bg-[var(--sidebar-bg)]/90 backdrop-blur-md sticky top-0 z-20">
           
-          {/* Left: Mobile hamburger + New Chat */}
           <div className="flex items-center space-x-2.5 min-w-0">
             {onToggleSidebar && (
               <button 
@@ -1196,58 +1252,90 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 className="lg:hidden text-[var(--text-secondary)] hover:text-white p-1.5 -ml-1 rounded-lg hover:bg-[var(--card-bg)] transition-colors flex-shrink-0"
                 title="Open Navigation"
               >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                <Menu className="h-5 w-5" />
               </button>
             )}
 
-            {onNewChat && (
-              <button
-                onClick={onNewChat}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300 transition-all shadow-sm"
-                title="Start a fresh conversation"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="text-xs font-bold hidden sm:inline">+ New Chat</span>
-              </button>
-            )}
+            <div className="flex items-center space-x-2 min-w-0">
+              {onNewChat && (
+                <button
+                  onClick={onNewChat}
+                  className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300 transition-all shadow-sm group"
+                  title="Start a fresh conversation"
+                >
+                  <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+                  <span className="text-xs font-bold hidden sm:inline">New Chat</span>
+                </button>
+              )}
+
+              <div className="flex flex-col min-w-0 ml-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-[var(--text-primary)] truncate max-w-[100px] sm:max-w-[200px]">
+                    {currentSessionTitle || activeModel.name}
+                  </h2>
+                  {isForked && (
+                    <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[9px] font-bold border border-purple-500/30 flex items-center gap-1">
+                      <BrainCircuit className="w-2.5 h-2.5" />
+                      FORKED
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Subtle Token Indicator in Header */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowTokenInspector(!showTokenInspector)}
+                  className={`flex items-center space-x-1 px-2 py-0.5 rounded-lg border transition-all text-[10px] font-mono shadow-sm flex-shrink-0 ${
+                    tokenStats.percentageUsed > 80 
+                      ? 'border-amber-500/50 bg-amber-950/30 text-amber-300' 
+                      : 'border-[var(--border-color)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:text-cyan-300 hover:border-cyan-500/30'
+                  }`}
+                  title="Session Token Usage"
+                >
+                  <Zap className="w-2.5 h-2.5 text-cyan-400" />
+                  <span className="font-semibold">{formatTokenCount(tokenStats.totalTokens)}</span>
+                </button>
+
+                {showTokenInspector && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowTokenInspector(false)} />
+                    <div className="absolute left-0 top-full mt-2 w-64 bg-[#14141e] border border-[var(--border-color)] rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 text-xs backdrop-blur-2xl">
+                      <div className="flex items-center justify-between pb-2 mb-3 border-b border-white/10">
+                        <div className="flex items-center space-x-1.5 font-semibold text-neutral-100">
+                          <Activity className="w-4 h-4 text-cyan-400" />
+                          <span>Token Usage</span>
+                        </div>
+                        <button onClick={() => setShowTokenInspector(false)} className="text-neutral-400 hover:text-white">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="space-y-1.5 bg-black/40 rounded-xl p-2.5 border border-white/5 font-mono text-[10px]">
+                        <div className="flex justify-between text-neutral-400">
+                          <span>Usage:</span>
+                          <span className="text-cyan-300 font-bold">{tokenStats.percentageUsed}%</span>
+                        </div>
+                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-cyan-500"
+                            style={{ width: `${Math.min(100, tokenStats.percentageUsed || 1)}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-neutral-400 pt-1">
+                          <span>Total:</span>
+                          <span className="text-neutral-200">{tokenStats.totalTokens.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Right: Incognito Status Only */}
+          {/* Right: Actions */}
           <div className="flex items-center space-x-1.5 sm:space-x-2 flex-shrink-0">
-            {onToggleIncognito && (
-              <button
-                onClick={onToggleIncognito}
-                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border ${
-                  isIncognito 
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm' 
-                    : 'bg-[var(--card-bg)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-white'
-                }`}
-                title={isIncognito ? 'Incognito Mode Active: Chat history not saved' : 'Toggle Incognito Mode'}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                </svg>
-                <span className="hidden xs:inline text-[11px]">{isIncognito ? 'Incognito' : 'Incognito'}</span>
-              </button>
-            )}
-
-            {/* New Chat Button */}
-            {onNewChat && (
-              <button
-                onClick={onNewChat}
-                className="p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--card-bg)] hover:bg-[var(--background)] text-[var(--text-secondary)] hover:text-white transition-all text-xs flex items-center space-x-1"
-                title="New Chat"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="hidden sm:inline">New</span>
-              </button>
-            )}
 
             {/* Create Tab Quick Switcher */}
             {onOpenCreateTab && (
@@ -2181,71 +2269,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 onChange={handleFileSelect}
               />
 
-              {/* Token counter moved inside input area (bottom right) */}
-              <div className="absolute -top-10 right-0 z-10">
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowTokenInspector(!showTokenInspector)}
-                    className={`flex items-center space-x-1 px-2.5 py-1 rounded-full border transition-all text-[10px] font-mono shadow-lg backdrop-blur-md ${
-                      tokenStats.percentageUsed > 80 
-                        ? 'border-amber-500/50 bg-amber-950/80 text-amber-300 hover:bg-amber-900/90' 
-                        : 'border-cyan-500/30 bg-[#14141e]/90 text-cyan-300 hover:bg-[#1c1c28]/95 hover:border-cyan-400'
-                    }`}
-                    title="Live Gemini Token Usage (Click for details)"
-                  >
-                    <svg className="w-3 h-3 text-cyan-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    <span className="font-bold">{formatTokenCount(tokenStats.totalTokens)}</span>
-                    <span className="opacity-50">/ {formatTokenCount(tokenStats.maxContextTokens)}</span>
-                  </button>
-
-                  {showTokenInspector && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowTokenInspector(false)} />
-                      <div className="absolute right-0 bottom-full mb-2 w-72 bg-[#14141e] border border-cyan-500/40 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-bottom-2 text-xs backdrop-blur-2xl">
-                        <div className="flex items-center justify-between pb-2 mb-3 border-b border-white/10">
-                          <div className="flex items-center space-x-1.5 font-semibold text-neutral-100">
-                            <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                            <span>Token Breakdown</span>
-                          </div>
-                          <button onClick={() => setShowTokenInspector(false)} className="text-neutral-400 hover:text-white">✕</button>
-                        </div>
-                        <div className="mb-3 space-y-1">
-                          <div className="flex justify-between text-[11px] text-neutral-300 font-mono">
-                            <span>Context Used</span>
-                            <span className="text-cyan-300 font-bold">{tokenStats.percentageUsed}%</span>
-                          </div>
-                          <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-cyan-500 transition-all duration-300"
-                              style={{ width: `${Math.min(100, tokenStats.percentageUsed || 1)}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-1.5 bg-black/40 rounded-xl p-2.5 border border-white/5 font-mono text-[11px]">
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Prompts:</span>
-                            <span className="text-neutral-200">{tokenStats.promptTokens.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between text-neutral-400">
-                            <span>Responses:</span>
-                            <span className="text-neutral-200">{tokenStats.responseTokens.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between text-cyan-300 font-bold border-t border-white/10 pt-1">
-                            <span>Total:</span>
-                            <span>{tokenStats.totalTokens.toLocaleString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
               {/* Plus Button on Left */}
               <div className="relative flex-shrink-0">
                 <button
@@ -2258,9 +2281,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   }`}
                   title="Add attachment or features (+)"
                 >
-                  <svg className="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus className="w-5 h-5 transition-transform duration-200" />
                 </button>
 
                 {/* Options Menu: Desktop Floating Upwards + Mobile Native Bottom Sheet */}

@@ -1,14 +1,14 @@
 import { ChatSession, VirtualModel, ShortcutItem, ChatFolder, GeneratedImageItem } from '../types';
 import { DEFAULT_MODELS, DEFAULT_SHORTCUTS } from '../constants';
 import { normalizeModelName } from './geminiService';
-import { storeImage, getImage, deleteImage, storeSessionMessages, getSessionMessages, deleteSessionMessages } from './indexedDbService';
+import { storeImage, getImage, deleteImage, storeSessionMessages, getSessionMessages, deleteSessionMessages, storeMetadata, getMetadata } from './indexedDbService';
 
 const SESSIONS_KEY = 'nexus_chat_history';
 const MODELS_KEY = 'nexus_custom_models';
 const SETTINGS_KEY = 'nexus_user_settings';
 const SHORTCUTS_KEY = 'nexus_shortcuts';
 const FOLDERS_KEY = 'nexus_chat_folders';
-const CREATIONS_METADATA_KEY = 'nexus_image_metadata';
+const CREATIONS_METADATA_KEY_CONST = 'nexus_image_metadata';
 
 export interface UserSettings {
   displayName: string;
@@ -302,20 +302,31 @@ export const saveShortcuts = (shortcuts: ShortcutItem[]) => {
   localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts));
 };
 
-const CREATIONS_KEY = 'nexus_image_creations'; // Deprecated for blobs
-const CREATIONS_METADATA_KEY_CONST = 'nexus_image_metadata';
-
-export const getStoredCreations = (): GeneratedImageItem[] => {
+export const getStoredCreations = async (): Promise<GeneratedImageItem[]> => {
   try {
+    // 1. Try IndexedDB first
+    const indexedData = await getMetadata(CREATIONS_METADATA_KEY_CONST);
+    if (indexedData) return indexedData;
+
+    // 2. Migration: Check localStorage if not in IndexedDB
     const stored = localStorage.getItem(CREATIONS_METADATA_KEY_CONST);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
+    if (stored) {
+      const list = JSON.parse(stored);
+      // Move to IndexedDB and clear localStorage
+      await storeMetadata(CREATIONS_METADATA_KEY_CONST, list);
+      localStorage.removeItem(CREATIONS_METADATA_KEY_CONST);
+      return list;
+    }
+
+    return [];
+  } catch (e) {
+    console.error("Failed to load creations", e);
     return [];
   }
 };
 
 export const saveStoredCreation = async (item: GeneratedImageItem): Promise<GeneratedImageItem[]> => {
-  const list = getStoredCreations();
+  const list = await getStoredCreations();
   const existingIndex = list.findIndex(c => c.id === item.id);
   
   // Store the image blob in IndexedDB
@@ -323,7 +334,7 @@ export const saveStoredCreation = async (item: GeneratedImageItem): Promise<Gene
     await storeImage(item.id, item.url);
   }
 
-  // Store only metadata in localStorage
+  // Store only metadata in IndexedDB store
   const metadataOnly = { ...item, url: `indexeddb://${item.id}` };
 
   if (existingIndex >= 0) {
@@ -332,8 +343,10 @@ export const saveStoredCreation = async (item: GeneratedImageItem): Promise<Gene
     list.unshift(metadataOnly);
   }
 
-  localStorage.setItem(CREATIONS_METADATA_KEY_CONST, JSON.stringify(list.slice(0, 100)));
-  return list;
+  // Persist the updated list (up to 500 items, IndexedDB can handle more)
+  const truncatedList = list.slice(0, 500);
+  await storeMetadata(CREATIONS_METADATA_KEY_CONST, truncatedList);
+  return truncatedList;
 };
 
 export const resolveImageUrl = async (metadataUrl: string): Promise<string> => {
@@ -346,8 +359,8 @@ export const resolveImageUrl = async (metadataUrl: string): Promise<string> => {
 };
 
 export const deleteStoredCreation = async (id: string): Promise<GeneratedImageItem[]> => {
-  const list = getStoredCreations().filter(c => c.id !== id);
-  localStorage.setItem(CREATIONS_METADATA_KEY_CONST, JSON.stringify(list));
+  const list = (await getStoredCreations()).filter(c => c.id !== id);
+  await storeMetadata(CREATIONS_METADATA_KEY_CONST, list);
   await deleteImage(id);
   return list;
 };

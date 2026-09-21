@@ -1,4 +1,41 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { 
+  Folder, 
+  Book, 
+  Code, 
+  Briefcase, 
+  Star, 
+  Heart, 
+  Zap, 
+  Search, 
+  MessageSquare, 
+  Sparkles, 
+  Shield, 
+  Globe, 
+  Music, 
+  Camera, 
+  Rocket, 
+  Lightbulb,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Trash2,
+  MoreVertical,
+  Download,
+  Share2,
+  Activity,
+  Settings,
+  Menu,
+  X,
+  PlusCircle,
+  Image as ImageIcon,
+  Check,
+  Edit2,
+  Copy,
+  LayoutDashboard,
+  BrainCircuit,
+  Pencil
+} from 'lucide-react';
 import { VirtualModel, ViewMode, ChatSession, PersonaTone, ChatFolder } from '../types';
 import { exportBatchChatsAsZip } from '../services/exportService';
 import { getPersonalizationConfig } from '../services/personalizationService';
@@ -9,6 +46,35 @@ import {
   deleteStoredFolder, 
   moveSessionToFolder 
 } from '../services/storageService';
+
+const PRESET_ICONS = [
+  { id: 'Folder', icon: Folder },
+  { id: 'Book', icon: Book },
+  { id: 'Code', icon: Code },
+  { id: 'Briefcase', icon: Briefcase },
+  { id: 'Star', icon: Star },
+  { id: 'Heart', icon: Heart },
+  { id: 'Zap', icon: Zap },
+  { id: 'Search', icon: Search },
+  { id: 'MessageSquare', icon: MessageSquare },
+  { id: 'Sparkles', icon: Sparkles },
+  { id: 'Shield', icon: Shield },
+  { id: 'Globe', icon: Globe },
+  { id: 'Music', icon: Music },
+  { id: 'Camera', icon: Camera },
+  { id: 'Rocket', icon: Rocket },
+  { id: 'Lightbulb', icon: Lightbulb }
+];
+
+const FolderIconRenderer = ({ icon, className }: { icon?: string; className?: string }) => {
+  if (!icon) return <Folder className={className} />;
+  if (icon.startsWith('data:')) {
+    return <img src={icon} className={`${className} object-contain rounded-sm`} alt="" />;
+  }
+  const IconEntry = PRESET_ICONS.find(p => p.id === icon);
+  const IconComp = IconEntry ? IconEntry.icon : Folder;
+  return <IconComp className={className} />;
+};
 
 interface SidebarProps {
   models: VirtualModel[];
@@ -74,11 +140,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState('#06b6d4');
-  const [newFolderIcon, setNewFolderIcon] = useState('📁');
+  const [newFolderIcon, setNewFolderIcon] = useState('Folder');
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [draggedSessionId, setDraggedSessionId] = useState<string | null>(null);
   const [activeDropFolderId, setActiveDropFolderId] = useState<string | null | 'root'>(null);
   const [selectedSummarySession, setSelectedSummarySession] = useState<ChatSession | null>(null);
+  const folderIconInputRef = useRef<HTMLInputElement>(null);
 
   // Batch Selection and Export State
   const [isBatchSelecting, setIsBatchSelecting] = useState(false);
@@ -104,12 +171,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return () => unsub();
   }, []);
 
+  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewFolderIcon(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleCreateNewFolder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
     createStoredFolder(newFolderName.trim(), newFolderColor, newFolderIcon);
     setFolders(getStoredFolders());
     setNewFolderName('');
+    setNewFolderIcon('Folder');
     setIsCreatingFolder(false);
   };
 
@@ -699,39 +778,75 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Create Folder Form */}
           {isCreatingFolder && (
-            <form onSubmit={handleCreateNewFolder} className="mt-2 p-2.5 rounded-xl bg-[var(--card-bg)] border border-amber-500/40 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200 shadow-lg relative z-30">
-              <div className="flex gap-2">
+            <form onSubmit={handleCreateNewFolder} className="mt-2 p-3 rounded-2xl bg-[#14141e] border border-amber-500/40 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200 shadow-2xl relative z-30 backdrop-blur-xl">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1">Folder Name</label>
                 <input
                   type="text"
-                  placeholder="Folder name..."
+                  placeholder="e.g., Marketing Projects"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   autoFocus
-                  className="flex-1 bg-[var(--background)] text-xs text-[var(--text-primary)] px-2 py-1.5 rounded-lg border border-[var(--border-color)] focus:outline-none focus:border-amber-500"
-                />
-                <input
-                  type="text"
-                  value={newFolderIcon}
-                  onChange={(e) => setNewFolderIcon(e.target.value)}
-                  className="w-10 bg-[var(--background)] text-center text-xs px-1 rounded-lg border border-[var(--border-color)] focus:outline-none focus:border-amber-500"
-                  title="Folder Icon (Emoji)"
+                  className="w-full bg-black/40 text-xs text-[var(--text-primary)] px-3 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-amber-500 transition-all"
                 />
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1">
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between ml-1">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Icon Selection</label>
+                  <button 
+                    type="button" 
+                    onClick={() => folderIconInputRef.current?.click()}
+                    className="text-[9px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <PlusCircle className="w-2.5 h-2.5" />
+                    Custom
+                  </button>
+                </div>
+                <input type="file" ref={folderIconInputRef} onChange={handleIconUpload} className="hidden" accept="image/*" />
+                
+                <div className="grid grid-cols-8 gap-1.5 bg-black/40 p-2 rounded-xl border border-white/5">
+                  {PRESET_ICONS.map(({ id, icon: IconComp }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setNewFolderIcon(id)}
+                      className={`flex items-center justify-center p-1.5 rounded-lg transition-all ${
+                        newFolderIcon === id 
+                          ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' 
+                          : 'text-neutral-500 hover:bg-white/5 hover:text-neutral-300'
+                      }`}
+                    >
+                      <IconComp className="w-3.5 h-3.5" />
+                    </button>
+                  ))}
+                  {newFolderIcon.startsWith('data:') && (
+                    <div className="flex items-center justify-center p-1 rounded-lg bg-amber-500 shadow-lg shadow-amber-500/20">
+                      <img src={newFolderIcon} className="w-3.5 h-3.5 object-contain rounded-sm" alt="" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-1.5">
                   {['#06b6d4', '#6366f1', '#ec4899', '#10b981', '#f59e0b'].map(col => (
                     <button
                       key={col}
                       type="button"
                       onClick={() => setNewFolderColor(col)}
-                      className={`w-3.5 h-3.5 rounded-full transition-transform ${newFolderColor === col ? 'scale-125 ring-1 ring-white' : 'opacity-60 hover:opacity-100'}`}
+                      className={`w-4 h-4 rounded-full transition-all border-2 ${
+                        newFolderColor === col 
+                          ? 'border-white scale-110 shadow-sm' 
+                          : 'border-transparent opacity-60 hover:opacity-100 hover:scale-105'
+                      }`}
                       style={{ backgroundColor: col }}
                     />
                   ))}
                 </div>
-                <div className="flex gap-1">
-                  <button type="button" onClick={() => setIsCreatingFolder(false)} className="px-2 py-1 text-[10px] text-[var(--text-secondary)]">Cancel</button>
-                  <button type="submit" disabled={!newFolderName.trim()} className="px-2.5 py-1 text-[10px] rounded-lg bg-amber-600 text-white font-bold disabled:opacity-50">Create</button>
+                <div className="flex gap-1.5">
+                  <button type="button" onClick={() => setIsCreatingFolder(false)} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white transition-colors">Cancel</button>
+                  <button type="submit" disabled={!newFolderName.trim()} className="px-4 py-1.5 text-xs rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold disabled:opacity-50 transition-all shadow-lg shadow-amber-500/10">Create</button>
                 </div>
               </div>
             </form>
@@ -860,11 +975,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         className="flex items-center justify-between px-2 py-1.5 text-[11px] font-semibold cursor-pointer group"
                       >
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          <span className="text-[9px] text-[var(--text-secondary)] transition-transform duration-200" style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
-                            ▼
+                          <span className="text-[var(--text-secondary)] transition-transform duration-200" style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+                            <ChevronDown className="w-3 h-3" />
                           </span>
-                          <span className="flex-shrink-0 text-sm">
-                            {folder.icon || '📁'}
+                          <span className="flex-shrink-0" style={{ color: folder.color }}>
+                            <FolderIconRenderer icon={folder.icon} className="w-3.5 h-3.5" />
                           </span>
                           <span className="truncate text-[var(--text-primary)]">{folder.name}</span>
                           <span className="text-[9px] font-mono text-[var(--text-secondary)] opacity-60">
@@ -938,20 +1053,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
             <div className="bg-[var(--card-bg)] border border-cyan-500/40 rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl relative">
               <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold">
-                    AI
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-[var(--text-primary)]">AI Summary</h3>
-                    <p className="text-[11px] text-[var(--text-secondary)] truncate max-w-xs">{selectedSummarySession.title}</p>
-                  </div>
+                <div className="flex items-center space-x-1.5 font-semibold text-neutral-100">
+                  <Activity className="w-4 h-4 text-cyan-400" />
+                  <span>AI Summary</span>
                 </div>
                 <button
                   onClick={() => setSelectedSummarySession(null)}
                   className="p-1 rounded-lg text-[var(--text-secondary)] hover:text-white"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 

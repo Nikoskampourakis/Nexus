@@ -1202,6 +1202,7 @@ const App: React.FC = () => {
             onForkCurrentSession={handleForkCurrentSession}
             onForkFromMessage={handleForkFromMessage}
             onEditMessage={handleEditMessage}
+            isForked={Boolean(currentSession?.forkedFromSessionId)}
 
             // Mobile-first single header navigation
             onToggleSidebar={() => setSidebarOpen(true)}
