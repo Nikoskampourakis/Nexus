@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper to check if user owns the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && isOwner(userId);
+    }
+
+    // Chat sessions
+    match /chatSessions/{sessionId} {
+      allow read, write: if isAuthenticated() && isOwner(resource.data.userId || request.resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+    }
+
+    // Chat folders
+    match /chatFolders/{folderId} {
+      allow read, write: if isAuthenticated() && isOwner(resource.data.userId || request.resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+    }
+
+    // Virtual models
+    match /virtualModels/{modelId} {
+      allow read, write: if isAuthenticated() && isOwner(resource.data.userId || request.resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+    }
+  }
+}

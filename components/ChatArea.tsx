@@ -68,6 +68,9 @@ import { DeepDiveCard, MediaLinksCard, CorrectionAuditCard } from './ResearchToo
 import { ArchivePackage, unpackArchive, packZipArchive, packTarArchive } from '../services/archiveService';
 import { downloadWordFromMarkdown, downloadPptxFromMarkdown } from '../services/docGenService';
 import { CameraModal } from './CameraModal';
+import { GoogleDriveImportModal } from './GoogleDriveImportModal';
+import { AppIcon } from './AppIcon';
+import { trackAppCommandExecuted } from '../services/storageService';
 import { calculateSessionTokens, formatTokenCount, TokenStats } from '../services/tokenService';
 import { generateChatSummary } from '../services/geminiService';
 
@@ -129,11 +132,12 @@ interface ChatAreaProps {
   onToggleSidebar?: () => void;
   onNewChat?: () => void;
   onOpenCreateTab?: () => void;
-  onOpenConnectTab?: () => void;
+  onOpenAppStore?: () => void;
   onSendImageToCreateStudio?: (imageBase64: string, promptText: string) => void;
 
   // Document & Presentation Features
   onDownloadChat?: () => void;
+  onOpenSettings?: (tab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage') => void;
   isForked?: boolean;
   expiresAt?: number;
 }
@@ -419,9 +423,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleSidebar,
   onNewChat,
   onOpenCreateTab,
-  onOpenConnectTab,
+  onOpenAppStore,
   onSendImageToCreateStudio,
   onDownloadChat,
+  onOpenSettings,
   isForked = false,
   expiresAt,
 }) => {
@@ -431,6 +436,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const recognitionRef = useRef<any>(null);
 
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
+  const [showDriveModal, setShowDriveModal] = useState(false);
 
   // Countdown timer for expired chats
   useEffect(() => {
@@ -755,6 +761,79 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
   };
 
+  const handleDriveImportSuccess = (file: { name: string; mimeType: string; content: string }) => {
+    const importedText = `📄 [IMPORTED FROM GOOGLE DRIVE: ${file.name}]\nMIME Type: ${file.mimeType}\n\n--- DOCUMENT CONTENT START ---\n${file.content.slice(0, 18000)}\n--- DOCUMENT CONTENT END ---\n\nPlease analyze this Google Drive document.`;
+    onInputChange(importedText);
+    setDocNotification(`Imported "${file.name}" from Google Drive into prompt!`);
+    setTimeout(() => setDocNotification(null), 4500);
+  };
+
+  const handleSlashCommand = (cmdText: string): boolean => {
+    const trimmed = cmdText.trim();
+    if (!trimmed.startsWith('/')) return false;
+
+    trackAppCommandExecuted();
+    const lower = trimmed.toLowerCase();
+
+    if (lower === '/drive' || lower.startsWith('/drive ')) {
+      setShowDriveModal(true);
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/stats' || lower === '/usage' || lower.startsWith('/stats ') || lower.startsWith('/usage ')) {
+      if (onOpenSettings) onOpenSettings('usage');
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/settings' || lower.startsWith('/settings ')) {
+      if (onOpenSettings) onOpenSettings('general');
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/clear' || lower === '/new') {
+      if (onNewChat) onNewChat();
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/export') {
+      if (onDownloadChat) onDownloadChat();
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/research') {
+      if (onToggleResearch) onToggleResearch();
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/think') {
+      if (onToggleThink) onToggleThink();
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/study') {
+      if (onToggleStudy) onToggleStudy();
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/council') {
+      if (onToggleCouncil) onToggleCouncil();
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/camera') {
+      setShowCamera(true);
+      onInputChange('');
+      return true;
+    }
+    if (lower === '/help' || lower === '/commands') {
+      setDocNotification("Commands: /drive, /stats, /settings, /image <prompt>, /research, /think, /study, /council, /camera, /clear, /export");
+      setTimeout(() => setDocNotification(null), 8000);
+      onInputChange('');
+      return true;
+    }
+    return false;
+  };
+
   const handleSendClick = async () => {
     if (!input.trim() && !pendingAttachment && !pendingArchive) return;
     
@@ -765,6 +844,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
 
     const trimmed = input.trim();
+
+    // Check if app command or slash command was entered
+    if (handleSlashCommand(trimmed)) {
+      return;
+    }
 
     // Check if Image Generation Mode or /image command was used
     const isImageCommand = trimmed.startsWith('/image ') || trimmed.startsWith('/draw ') || trimmed.startsWith('/generate ');
@@ -957,6 +1041,34 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 py-1">
           Media & Files
         </div>
+
+        {/* Google Drive Import */}
+        <button
+          type="button"
+          onClick={() => {
+            setShowDriveModal(true);
+            setShowUploadMenu(false);
+          }}
+          className="w-full text-left px-2.5 py-2 text-xs text-neutral-200 hover:bg-white/10 rounded-xl flex items-center justify-between transition-colors group mb-1"
+        >
+          <div className="flex items-center space-x-2.5">
+            <div className="w-7 h-7 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 group-hover:bg-blue-500/25">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 001-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
+              </svg>
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-100 flex items-center gap-1.5">
+                <span>Google Drive Import</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-mono">Workspace</span>
+              </div>
+              <div className="text-[10px] text-neutral-400">Import Docs, Sheets, Slides for AI</div>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
+            Drive
+          </span>
+        </button>
 
         {/* Single Unified Upload Icon */}
         <button
@@ -1393,17 +1505,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               </button>
             )}
 
-            {/* Connect Tab Quick Switcher */}
-            {onOpenConnectTab && (
+            {/* App Store Tab Quick Switcher */}
+            {onOpenAppStore && (
               <button
-                onClick={onOpenConnectTab}
+                onClick={onOpenAppStore}
                 className="px-2.5 py-1 rounded-lg border border-blue-500/40 bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 hover:text-white transition-all text-xs flex items-center space-x-1.5 shadow-sm"
-                title="Open Connect Apps (Gmail, Drive, Sheets, Docs, Calendar, Tasks)"
+                title="Open App Store (Gmail, Drive, Sheets, Docs, Calendar, Tasks)"
               >
                 <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                 </svg>
-                <span className="hidden xs:inline font-semibold">Connect</span>
+                <span className="hidden xs:inline font-semibold">Store</span>
               </button>
             )}
 
@@ -2360,6 +2472,47 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 )}
               </div>
 
+              {/* App Commands Slash Autocomplete Popover */}
+              {input.trim().startsWith('/') && (
+                <div className="absolute bottom-full left-0 mb-2.5 w-full max-w-md bg-[#161622]/95 border border-cyan-500/30 rounded-2xl shadow-2xl p-2 z-50 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-150 custom-scrollbar max-h-60 overflow-y-auto">
+                  <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider px-2 py-1 border-b border-white/10 mb-1 flex items-center justify-between">
+                    <span>App Commands</span>
+                    <span className="text-neutral-500 font-mono">Select or type</span>
+                  </div>
+                  {[
+                    { cmd: '/drive', label: 'Import Google Drive', desc: 'Browse Docs, Sheets, Slides' },
+                    { cmd: '/stats', label: 'Usage & AI Use Stats', desc: 'View token & API statistics' },
+                    { cmd: '/image', label: 'Generate AI Image', desc: 'Create visuals with Gemini' },
+                    { cmd: '/research', label: 'Toggle Research Mode', desc: 'Enable live web research' },
+                    { cmd: '/think', label: 'Toggle Deep Think', desc: 'Multi-step reasoning engine' },
+                    { cmd: '/study', label: 'Toggle Study Mode', desc: 'Socratic learning assistant' },
+                    { cmd: '/council', label: 'Toggle Council Debate', desc: 'Multi-expert deliberation' },
+                    { cmd: '/camera', label: 'Open Camera', desc: 'Take photo with camera' },
+                    { cmd: '/clear', label: 'New Conversation', desc: 'Clear history & start fresh' },
+                    { cmd: '/settings', label: 'Open Settings', desc: 'Configure system settings' },
+                    { cmd: '/export', label: 'Export Transcript', desc: 'Download chat document' },
+                    { cmd: '/help', label: 'Commands List', desc: 'Show all app slash commands' },
+                  ]
+                  .filter(item => item.cmd.toLowerCase().startsWith(input.trim().toLowerCase().split(' ')[0]))
+                  .map((item) => (
+                    <button
+                      key={item.cmd}
+                      type="button"
+                      onClick={() => handleSlashCommand(item.cmd)}
+                      className="w-full text-left px-3 py-1.5 rounded-xl text-xs hover:bg-cyan-500/20 hover:text-white text-neutral-200 flex items-center justify-between transition-colors group"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono text-cyan-400 font-bold bg-cyan-500/10 px-1.5 py-0.5 rounded text-[11px] group-hover:bg-cyan-500 group-hover:text-black">
+                          {item.cmd}
+                        </span>
+                        <span className="font-medium text-neutral-200">{item.label}</span>
+                      </div>
+                      <span className="text-[10px] text-neutral-400 truncate max-w-[150px]">{item.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Textarea */}
               <textarea
                 ref={textareaRef}
@@ -2412,13 +2565,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     title={imageGenMode ? "Generate Image" : "Send message"}
                   >
                     {imageGenMode ? (
-                      <svg className="w-4 h-4 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                      </svg>
+                      <AppIcon name="Sparkles" className="w-4 h-4 text-black" />
                     ) : (
-                      <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                      </svg>
+                      <AppIcon name="Send" className="w-4 h-4 text-black" />
                     )}
                   </button>
                 ) : (
@@ -2493,6 +2642,26 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             onClose={() => setCanvasOpen(false)} 
           />
         </div>
+      )}
+
+      {/* Camera Capture Modal */}
+      {showCamera && (
+        <CameraModal
+          onCapture={(base64, mimeType) => {
+            setPendingAttachment({ mimeType, data: base64 });
+            setShowCamera(false);
+          }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+
+      {/* Google Drive Import Modal */}
+      {showDriveModal && (
+        <GoogleDriveImportModal
+          onClose={() => setShowDriveModal(false)}
+          onImportContent={(fileName, mimeType, extractedText) => handleDriveImportSuccess({ name: fileName, mimeType, content: extractedText })}
+          onFileSelect={handleDriveImportSuccess}
+        />
       )}
 
     </div>

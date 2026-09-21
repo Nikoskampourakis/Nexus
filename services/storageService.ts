@@ -375,6 +375,9 @@ export interface UserStatistics {
   totalResponseTokens: number;
   totalImagesCreated: number;
   totalVoiceTranscripts: number;
+  totalWorkspaceApiCalls?: number;
+  totalAppCommandsExecuted?: number;
+  modelUsageBreakdown?: Record<string, { messages: number; promptTokens: number; responseTokens: number }>;
   firstUsedDate: string;
   lastActiveDate: string;
   dailyUsageDates: string[]; // Set of YYYY-MM-DD
@@ -388,6 +391,9 @@ const DEFAULT_STATS: UserStatistics = {
   totalResponseTokens: 0,
   totalImagesCreated: 0,
   totalVoiceTranscripts: 0,
+  totalWorkspaceApiCalls: 0,
+  totalAppCommandsExecuted: 0,
+  modelUsageBreakdown: {},
   firstUsedDate: new Date().toISOString(),
   lastActiveDate: new Date().toISOString(),
   dailyUsageDates: [new Date().toISOString().slice(0, 10)]
@@ -425,7 +431,7 @@ export const incrementTimeSpent = (seconds: number = 1): number => {
   return stats.timeSpentSeconds;
 };
 
-export const trackMessageSent = (role: 'user' | 'model', promptTok: number = 0, respTok: number = 0) => {
+export const trackMessageSent = (role: 'user' | 'model', promptTok: number = 0, respTok: number = 0, modelId?: string) => {
   const stats = getUserStatistics();
   if (role === 'user') {
     stats.totalMessagesUser = (stats.totalMessagesUser || 0) + 1;
@@ -434,6 +440,17 @@ export const trackMessageSent = (role: 'user' | 'model', promptTok: number = 0, 
   }
   if (promptTok > 0) stats.totalPromptTokens = (stats.totalPromptTokens || 0) + promptTok;
   if (respTok > 0) stats.totalResponseTokens = (stats.totalResponseTokens || 0) + respTok;
+
+  if (modelId) {
+    if (!stats.modelUsageBreakdown) stats.modelUsageBreakdown = {};
+    const existing = stats.modelUsageBreakdown[modelId] || { messages: 0, promptTokens: 0, responseTokens: 0 };
+    stats.modelUsageBreakdown[modelId] = {
+      messages: existing.messages + 1,
+      promptTokens: existing.promptTokens + promptTok,
+      responseTokens: existing.responseTokens + respTok
+    };
+  }
+
   stats.lastActiveDate = new Date().toISOString();
   const today = new Date().toISOString().slice(0, 10);
   if (!stats.dailyUsageDates) stats.dailyUsageDates = [];
@@ -453,6 +470,18 @@ export const trackImageCreation = () => {
 export const trackVoiceTranscript = () => {
   const stats = getUserStatistics();
   stats.totalVoiceTranscripts = (stats.totalVoiceTranscripts || 0) + 1;
+  saveUserStatistics(stats);
+};
+
+export const trackWorkspaceApiCall = () => {
+  const stats = getUserStatistics();
+  stats.totalWorkspaceApiCalls = (stats.totalWorkspaceApiCalls || 0) + 1;
+  saveUserStatistics(stats);
+};
+
+export const trackAppCommandExecuted = () => {
+  const stats = getUserStatistics();
+  stats.totalAppCommandsExecuted = (stats.totalAppCommandsExecuted || 0) + 1;
   saveUserStatistics(stats);
 };
 

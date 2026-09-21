@@ -1,0 +1,133 @@
+{
+  "collections": [
+    {
+      "collectionId": "users",
+      "description": "User profile and personalization settings",
+      "fields": [
+        {
+          "name": "personalization",
+          "type": "map",
+          "description": "User's persona and custom instruction settings"
+        },
+        {
+          "name": "themeId",
+          "type": "string",
+          "description": "ID of the currently active theme"
+        },
+        {
+          "name": "updatedAt",
+          "type": "number",
+          "description": "Last time the user profile was updated"
+        }
+      ]
+    },
+    {
+      "collectionId": "chatSessions",
+      "description": "Collection of user chat sessions",
+      "fields": [
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "Owner of the session"
+        },
+        {
+          "name": "modelId",
+          "type": "string",
+          "description": "The virtual model ID used in this session"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "description": "Title of the chat"
+        },
+        {
+          "name": "messages",
+          "type": "array",
+          "description": "List of message objects"
+        },
+        {
+          "name": "updatedAt",
+          "type": "number",
+          "description": "Last interaction timestamp"
+        },
+        {
+          "name": "isIncognito",
+          "type": "boolean",
+          "description": "If true, chat is not persisted long-term"
+        },
+        {
+          "name": "folderId",
+          "type": "string",
+          "description": "Optional folder ID for organization"
+        },
+        {
+          "name": "expiresAt",
+          "type": "number",
+          "description": "Optional timestamp for temporary chat deletion"
+        }
+      ]
+    },
+    {
+      "collectionId": "chatFolders",
+      "description": "Folders for organizing chat sessions",
+      "fields": [
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "Owner of the folder"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Display name of the folder"
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "description": "Folder color"
+        },
+        {
+          "name": "createdAt",
+          "type": "number",
+          "description": "Creation timestamp"
+        }
+      ]
+    },
+    {
+      "collectionId": "virtualModels",
+      "description": "Custom agent configurations",
+      "fields": [
+        {
+          "name": "userId",
+          "type": "string",
+          "description": "Owner of the model"
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Model display name"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "Model purpose"
+        },
+        {
+          "name": "baseModel",
+          "type": "string",
+          "description": "Underlying Gemini model alias"
+        },
+        {
+          "name": "systemInstruction",
+          "type": "string",
+          "description": "Core system prompt"
+        },
+        {
+          "name": "knowledgeBase",
+          "type": "string",
+          "description": "Additional context text"
+        }
+      ]
+    }
+  ]
+}

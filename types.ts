@@ -179,6 +179,18 @@ export interface AppTheme {
   isGradientAccent: boolean; // If true, accent is treated as a background-image gradient
 }
 
+export interface IconPack {
+  id: string;
+  name: string;
+  description: string;
+  badge?: string;
+  author?: string;
+  style: 'lucide' | '3d-glass' | 'cyberpunk-neon' | 'pixel-retro' | 'gold-luxe' | 'doodle-hand' | 'custom';
+  overrides: Record<string, string>;
+  cssFilter?: string;
+  previewIcons: Array<{ iconId: string; url?: string; emoji?: string }>;
+}
+
 export interface KeyConfig {
   key: string;
   ctrl?: boolean;

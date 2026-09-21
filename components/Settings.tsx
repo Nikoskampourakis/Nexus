@@ -31,13 +31,17 @@ import {
   DEFAULT_CUSTOM_PROMPTS
 } from '../services/personalizationService';
 import { CharacteristicsView } from './CharacteristicsView';
+import { AppStatistics } from './AppStatistics';
+import { IconPackManager } from './IconPackManager';
+import { ChatSession } from '../types';
 
 interface SettingsProps {
   onClose: () => void;
   onSettingsChanged: () => void;
   models?: VirtualModel[];
+  sessions?: ChatSession[];
   onUpdateModelKnowledge?: (modelId: string, newKnowledge: string) => void;
-  initialTab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts';
+  initialTab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack';
 }
 
 const VOICES = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede', 'Calliope', 'Leda'];
@@ -169,9 +173,15 @@ export const Settings: React.FC<SettingsProps> = ({
   onClose, 
   onSettingsChanged, 
   models: propModels,
+  sessions: propSessions,
   initialTab = 'general'
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage'>(
+    initialTab === 'iconpack' ? 'appearance' : (initialTab as any)
+  );
+  const [appearanceSubTab, setAppearanceSubTab] = useState<'theme' | 'iconpack'>(
+    initialTab === 'iconpack' ? 'iconpack' : 'theme'
+  );
   const [settings, setSettings] = useState<UserSettings>({ displayName: '', defaultVoice: 'Kore' });
   const [testText, setTestText] = useState('Hello! I am Nexus, your advanced AI assistant.');
   const [isPlaying, setIsPlaying] = useState(false);
@@ -199,7 +209,12 @@ export const Settings: React.FC<SettingsProps> = ({
 
   useEffect(() => {
     if (initialTab) {
-      setActiveTab(initialTab);
+      if (initialTab === 'iconpack') {
+        setActiveTab('appearance');
+        setAppearanceSubTab('iconpack');
+      } else {
+        setActiveTab(initialTab as any);
+      }
     }
   }, [initialTab]);
 
@@ -475,12 +490,19 @@ export const Settings: React.FC<SettingsProps> = ({
             { id: 'general', label: 'General' },
             { id: 'advanced', label: 'Advanced Server Settings' },
             { id: 'personalization', label: 'Personalization & Memory' },
-            { id: 'appearance', label: 'Appearance' },
-            { id: 'shortcuts', label: 'Shortcuts' }
+            { id: 'appearance', label: 'Appearance & Icon Customization' },
+            { id: 'shortcuts', label: 'Shortcuts' },
+            { id: 'usage', label: 'Usage & AI Use' }
           ].map((tab) => (
             <button 
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                if (tab.id === 'appearance') {
+                  setActiveTab('appearance');
+                } else {
+                  setActiveTab(tab.id as any);
+                }
+              }}
               className={`pb-2 px-3 text-sm font-medium transition-all border-b-2 flex items-center space-x-1.5 whitespace-nowrap ${
                 activeTab === tab.id 
                   ? 'border-indigo-400 text-indigo-300 font-semibold' 
@@ -493,9 +515,29 @@ export const Settings: React.FC<SettingsProps> = ({
                   {personalizationConfig.tone}
                 </span>
               )}
+              {tab.id === 'appearance' && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                  Icons & Theme
+                </span>
+              )}
+              {tab.id === 'usage' && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                  Stats
+                </span>
+              )}
             </button>
           ))}
         </div>
+
+        {/* Usage & AI Use Tab Content */}
+        {activeTab === 'usage' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <AppStatistics
+              isEmbedded={true}
+              sessions={propSessions || getStoredSessions()}
+            />
+          </div>
+        )}
 
         {/* Personalization & Memory Combined Tab */}
         {activeTab === 'personalization' && (
@@ -1112,9 +1154,42 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
         )}
 
-        {/* Appearance Tab */}
+        {/* Appearance & Icon Customization Combined Tab */}
         {activeTab === 'appearance' && (
-            <ThemeBuilder currentTheme={currentTheme} onThemeChange={setCurrentTheme} />
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Sub-navigation Switcher */}
+            <div className="flex items-center space-x-2 bg-[var(--card-bg)] border border-[var(--border-color)] p-1.5 rounded-2xl w-fit">
+              <button
+                type="button"
+                onClick={() => setAppearanceSubTab('theme')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
+                  appearanceSubTab === 'theme'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-[var(--text-secondary)] hover:text-white'
+                }`}
+              >
+                <span>🎨 Theme & Color Palette</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAppearanceSubTab('iconpack')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
+                  appearanceSubTab === 'iconpack'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'text-[var(--text-secondary)] hover:text-white'
+                }`}
+              >
+                <span>🖼️ Icon Pack & Custom Images</span>
+              </button>
+            </div>
+
+            {appearanceSubTab === 'theme' ? (
+              <ThemeBuilder currentTheme={currentTheme} onThemeChange={setCurrentTheme} />
+            ) : (
+              <IconPackManager />
+            )}
+          </div>
         )}
         
         {/* Shortcuts Tab */}

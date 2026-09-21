@@ -37,6 +37,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { VirtualModel, ViewMode, ChatSession, PersonaTone, ChatFolder } from '../types';
+import { AppIcon } from './AppIcon';
 import { exportBatchChatsAsZip } from '../services/exportService';
 import { getPersonalizationConfig } from '../services/personalizationService';
 import { subscribeAuth } from '../services/workspaceAuthService';
@@ -67,13 +68,11 @@ const PRESET_ICONS = [
 ];
 
 const FolderIconRenderer = ({ icon, className }: { icon?: string; className?: string }) => {
-  if (!icon) return <Folder className={className} />;
+  if (!icon) return <AppIcon name="Folder" fallback={Folder} className={className} />;
   if (icon.startsWith('data:')) {
     return <img src={icon} className={`${className} object-contain rounded-sm`} alt="" />;
   }
-  const IconEntry = PRESET_ICONS.find(p => p.id === icon);
-  const IconComp = IconEntry ? IconEntry.icon : Folder;
-  return <IconComp className={className} />;
+  return <AppIcon name={icon} fallback={Folder} className={className} />;
 };
 
 interface SidebarProps {
@@ -100,6 +99,7 @@ interface SidebarProps {
   onToggleIncognito?: () => void;
   onNewChat?: (expiresInMs?: number | null) => void;
   onOpenStats?: () => void;
+  onOpenSettings?: (tab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack') => void;
   activeExpiration?: number | null;
 }
 
@@ -128,6 +128,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggle,
   onNewChat,
   onOpenStats,
+  onOpenSettings,
   activeExpiration
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -965,7 +966,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </span>
           </button>
 
-          {/* Connect Apps (Google Workspace: Gmail, Drive, Sheets, Docs, Calendar, Tasks) */}
+          {/* App Store (Google Workspace: Gmail, Drive, Sheets, Docs, Calendar, Tasks) */}
           <button
             onClick={() => {
               onChangeView('connect');
@@ -979,9 +980,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <span className="flex items-center gap-2">
               <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
               </svg>
-              <span>Connect Apps</span>
+              <span>App Store</span>
             </span>
             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${
               isWorkspaceConnected
@@ -1176,7 +1177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* 5. Bottom Navigation: Activity Statistics & Settings */}
+        {/* 5. Bottom Navigation: Activity Statistics, Icon Packs & Settings */}
         <div className="p-3 border-t border-[var(--border-color)] flex-shrink-0 bg-[var(--sidebar-bg)] space-y-1">
           {/* User Activity & Stats Button */}
           {onOpenStats && (
@@ -1188,14 +1189,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded-xl text-[var(--text-secondary)] hover:bg-[var(--card-bg)] hover:text-cyan-300 transition-all border border-transparent hover:border-[var(--border-color)]"
             >
               <div className="flex items-center space-x-2.5">
-                <svg className="h-4 w-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
+                <AppIcon name="Activity" className="h-4 w-4 text-cyan-400" />
                 <span>Usage Statistics</span>
               </div>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             </button>
           )}
+
+          {/* Icon Packs Shortcut Button */}
+          <button
+            onClick={() => {
+              if (onOpenSettings) {
+                onOpenSettings('iconpack');
+              } else {
+                onChangeView('settings');
+              }
+              if (window.innerWidth < 1024) onToggle();
+            }}
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded-xl text-[var(--text-secondary)] hover:bg-[var(--card-bg)] hover:text-purple-300 transition-all border border-transparent hover:border-[var(--border-color)]"
+          >
+            <div className="flex items-center space-x-2.5">
+              <AppIcon name="Sparkles" className="h-4 w-4 text-purple-400" />
+              <span>Icon Packs & Customization</span>
+            </div>
+            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 font-mono border border-purple-500/30">
+              Packs
+            </span>
+          </button>
 
           {/* Settings Button */}
           <button
@@ -1209,10 +1229,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 : 'text-[var(--text-secondary)] hover:bg-[var(--card-bg)] hover:text-[var(--text-primary)]'
             }`}
           >
-            <svg className="mr-2.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+            <AppIcon name="Settings" className="mr-2.5 h-4 w-4 text-neutral-300" />
             <span>Settings & Preferences</span>
           </button>
         </div>

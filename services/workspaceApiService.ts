@@ -274,6 +274,83 @@ export async function deleteDriveFile(fileId: string): Promise<void> {
   }
 }
 
+export async function getDriveFileTextOrContent(file: DriveFileItem): Promise<{
+  name: string;
+  mimeType: string;
+  content: string;
+  data64?: string;
+}> {
+  const mime = file.mimeType || '';
+
+  if (mime.includes('vnd.google-apps.document')) {
+    const doc = await getGoogleDocContent(file.id);
+    return {
+      name: file.name,
+      mimeType: 'text/plain',
+      content: doc.text
+    };
+  } else if (mime.includes('vnd.google-apps.spreadsheet')) {
+    try {
+      const rows = await getSheetValues(file.id, 'A1:Z50');
+      const formatted = rows.map(r => r.join('\t')).join('\n');
+      return {
+        name: file.name,
+        mimeType: 'text/plain',
+        content: formatted || '(Empty spreadsheet)'
+      };
+    } catch {
+      return {
+        name: file.name,
+        mimeType: 'text/plain',
+        content: `[Spreadsheet ID: ${file.id}]`
+      };
+    }
+  } else if (mime.includes('vnd.google-apps.presentation')) {
+    const res = await authFetch(`https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=text/plain`);
+    if (res.ok) {
+      const text = await res.text();
+      return { name: file.name, mimeType: 'text/plain', content: text };
+    }
+  }
+
+  if (mime.startsWith('image/')) {
+    const res = await authFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+    if (res.ok) {
+      const blob = await res.blob();
+      const buffer = await blob.arrayBuffer();
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      return {
+        name: file.name,
+        mimeType: mime,
+        content: `[Attached Image: ${file.name}]`,
+        data64: base64
+      };
+    }
+  }
+
+  const res = await authFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+  if (!res.ok) {
+    const expRes = await authFetch(`https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=text/plain`);
+    if (expRes.ok) {
+      const text = await expRes.text();
+      return { name: file.name, mimeType: 'text/plain', content: text };
+    }
+    throw new Error('Could not download file content from Drive');
+  }
+
+  const text = await res.text();
+  return {
+    name: file.name,
+    mimeType: mime || 'text/plain',
+    content: text
+  };
+}
+
 // ==========================================
 // 3. GOOGLE SHEETS API
 // ==========================================

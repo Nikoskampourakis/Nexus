@@ -22,6 +22,7 @@ import {
   getStoredMessages
 } from './services/storageService';
 import { applyTheme, getSavedTheme } from './services/themeService';
+import { IconPackProvider } from './components/AppIcon';
 
 const App: React.FC = () => {
   // State
@@ -41,6 +42,12 @@ const App: React.FC = () => {
 
   // Staged Image for Create Studio Bridge
   const [stagedCreateImage, setStagedCreateImage] = useState<{ url: string; prompt: string } | null>(null);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack'>('general');
+
+  const handleOpenSettings = (tab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack') => {
+    setSettingsTab(tab || 'general');
+    setView('settings');
+  };
 
   // Tool States
   const [researchMode, setResearchMode] = useState(false);
@@ -1127,8 +1134,9 @@ const App: React.FC = () => {
   if (models.length === 0) return <div className="h-screen bg-black text-white flex items-center justify-center font-mono text-sm">Initializing Nexus Architect...</div>;
 
   return (
-    <div className="flex h-screen bg-[var(--app-bg)] text-[var(--text-primary)] overflow-hidden font-sans selection:bg-[var(--accent-solid)] selection:text-white">
-      {/* Sidebar */}
+    <IconPackProvider>
+      <div className="flex h-screen bg-[var(--app-bg)] text-[var(--text-primary)] overflow-hidden font-sans selection:bg-[var(--accent-solid)] selection:text-white">
+        {/* Sidebar */}
       <Sidebar
         models={models}
         activeModelId={activeModelId}
@@ -1164,6 +1172,7 @@ const App: React.FC = () => {
         }}
         onOpenDocumentStudio={() => handleOpenDocumentStudio()}
         onOpenArchiveStudio={() => handleOpenArchiveStudio()}
+        onOpenSettings={handleOpenSettings}
         activeExpiration={nextChatExpiration ? nextChatExpiration - Date.now() : null}
       />
 
@@ -1247,10 +1256,11 @@ const App: React.FC = () => {
             onToggleSidebar={() => setSidebarOpen(true)}
             onNewChat={handleNewChat}
             onOpenCreateTab={() => setView('create')}
-            onOpenConnectTab={() => setView('connect')}
+            onOpenAppStore={() => setView('connect')}
 
             // Document & Presentation & Archive Features
             onDownloadChat={() => handleOpenDownloadChat()}
+            onOpenSettings={handleOpenSettings}
           />
         )}
 
@@ -1296,6 +1306,8 @@ const App: React.FC = () => {
              onClose={() => setView('chat')}
              onSettingsChanged={refreshData}
              models={models}
+             sessions={sessions}
+             initialTab={settingsTab}
           />
         )}
 
@@ -1321,6 +1333,7 @@ const App: React.FC = () => {
         )}
       </main>
     </div>
+    </IconPackProvider>
   );
 };
 
