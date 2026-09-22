@@ -42,9 +42,9 @@ const App: React.FC = () => {
 
   // Staged Image for Create Studio Bridge
   const [stagedCreateImage, setStagedCreateImage] = useState<{ url: string; prompt: string } | null>(null);
-  const [settingsTab, setSettingsTab] = useState<'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack'>('general');
+  const [settingsTab, setSettingsTab] = useState<'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack' | 'permissions'>('general');
 
-  const handleOpenSettings = (tab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack') => {
+  const handleOpenSettings = (tab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack' | 'permissions') => {
     setSettingsTab(tab || 'general');
     setView('settings');
   };

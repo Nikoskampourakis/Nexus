@@ -73,6 +73,14 @@ import { AppIcon } from './AppIcon';
 import { trackAppCommandExecuted } from '../services/storageService';
 import { calculateSessionTokens, formatTokenCount, TokenStats } from '../services/tokenService';
 import { generateChatSummary } from '../services/geminiService';
+import { 
+  AppLinkingMenu, 
+  LinkedAppPill, 
+  renderTextWithAppLinks, 
+  LINKABLE_APPS, 
+  LinkableAppItem, 
+  executeAppAction 
+} from './AppLinkingModal';
 
 interface ChatAreaProps {
   activeModel: VirtualModel;
@@ -137,7 +145,7 @@ interface ChatAreaProps {
 
   // Document & Presentation Features
   onDownloadChat?: () => void;
-  onOpenSettings?: (tab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage') => void;
+  onOpenSettings?: (tab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack' | 'permissions') => void;
   isForked?: boolean;
   expiresAt?: number;
 }
@@ -217,7 +225,15 @@ const CanvasPreview = ({ code, onClose }: { code: string, onClose: () => void })
   );
 };
 
-const SmartContentRenderer = ({ content, onRunCode }: { content: string, onRunCode: (c: string) => void }) => {
+const SmartContentRenderer = ({ 
+  content, 
+  onRunCode,
+  onAppLinkClick 
+}: { 
+  content: string; 
+  onRunCode: (c: string) => void;
+  onAppLinkClick?: (mention: string) => void;
+}) => {
     const parts = content.split(/(\|\|VISUAL\|\||\|\|QUIZ\|\||\|\|CALC\|\||\|\|MATH\|\||\|\|DEEP_DIVE\|\||\|\|MEDIA_LINKS\|\||\|\|CORRECTION_AUDIT\|\|)/g);
     
     return (
@@ -305,6 +321,9 @@ const SmartContentRenderer = ({ content, onRunCode }: { content: string, onRunCo
                             return <h3 className="text-base sm:text-lg font-semibold text-cyan-300 mt-3 mb-1.5">{children}</h3>;
                           },
                           p({ children }) {
+                            if (typeof children === 'string' && onAppLinkClick) {
+                              return <p className="text-sm text-neutral-200 leading-relaxed my-2">{renderTextWithAppLinks(children, onAppLinkClick)}</p>;
+                            }
                             return <p className="text-sm text-neutral-200 leading-relaxed my-2">{children}</p>;
                           },
                           ul({ children }) {
@@ -314,6 +333,9 @@ const SmartContentRenderer = ({ content, onRunCode }: { content: string, onRunCo
                             return <ol className="list-decimal pl-5 my-2 space-y-1 text-sm text-neutral-200">{children}</ol>;
                           },
                           li({ children }) {
+                            if (typeof children === 'string' && onAppLinkClick) {
+                              return <li className="leading-relaxed">{renderTextWithAppLinks(children, onAppLinkClick)}</li>;
+                            }
                             return <li className="leading-relaxed">{children}</li>;
                           },
                           blockquote({ children }) {
@@ -519,6 +541,97 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [showTokenInspector, setShowTokenInspector] = useState(false);
   const tokenStats: TokenStats = calculateSessionTokens(messages, activeModel, input);
 
+  // @ App Linking & Mentions State
+  const [showAtAppMenu, setShowAtAppMenu] = useState(false);
+
+  // Detect active @ app query in current input
+  const getAtAppMentionQuery = (text: string): string | null => {
+    const atIndex = text.lastIndexOf('@');
+    if (atIndex === -1) return null;
+    const slice = text.slice(atIndex);
+    // If there is whitespace after @word, mention query is finished
+    if (/\s/.test(slice)) return null;
+    return slice; // e.g. "@cr", "@d", "@"
+  };
+
+  const currentAtMentionQuery = getAtAppMentionQuery(input);
+  const isAtMenuOpen = showAtAppMenu || currentAtMentionQuery !== null;
+
+  const handleSelectApp = (app: LinkableAppItem, mode: 'mention' | 'launch') => {
+    if (mode === 'launch') {
+      executeAppAction(app.id, {
+        onOpenCreate: onOpenCreateTab,
+        onOpenDrive: () => setShowDriveModal(true),
+        onOpenPermissions: () => onOpenSettings?.('permissions'),
+        onOpenStats: () => onOpenSettings?.('usage'),
+        onToggleResearch,
+        onToggleThink,
+        onToggleStudy,
+        onToggleCouncil,
+        onOpenCamera: () => setShowCamera(true),
+        onOpenArchive: () => fileInputRef.current?.click(),
+        onOpenSettings: () => onOpenSettings?.('general')
+      });
+      setShowAtAppMenu(false);
+      return;
+    }
+
+    // Mention mode: replace active @query or append
+    if (currentAtMentionQuery !== null) {
+      const atIndex = input.lastIndexOf('@');
+      const prefix = input.slice(0, atIndex);
+      const newInput = `${prefix}${app.mention} `;
+      onInputChange(newInput);
+    } else {
+      const newInput = input ? `${input.trim()} ${app.mention} ` : `${app.mention} `;
+      onInputChange(newInput);
+    }
+    setShowAtAppMenu(false);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
+  const handleAppLinkClick = (mention: string) => {
+    const cleanLower = mention.toLowerCase();
+    const app = LINKABLE_APPS.find(a => 
+      a.mention.toLowerCase() === cleanLower || a.aliases.some(alias => alias.toLowerCase() === cleanLower)
+    );
+    if (!app) return;
+    executeAppAction(app.id, {
+      onOpenCreate: onOpenCreateTab,
+      onOpenDrive: () => setShowDriveModal(true),
+      onOpenPermissions: () => onOpenSettings?.('permissions'),
+      onOpenStats: () => onOpenSettings?.('usage'),
+      onToggleResearch,
+      onToggleThink,
+      onToggleStudy,
+      onToggleCouncil,
+      onOpenCamera: () => setShowCamera(true),
+      onOpenArchive: () => fileInputRef.current?.click(),
+      onOpenSettings: () => onOpenSettings?.('general')
+    });
+  };
+
+  // Detected @ mentions in input to display as linked badges above the textarea
+  const detectedLinkedMentions = Array.from(
+    new Set(
+      (input.match(/(@(?:Create|Drive|GoogleDrive|Permissions|Privacy|Stats|Statistics|Usage|Research|Web|Think|Study|Quiz|Council|Debate|Camera|Archive|Settings|Studio))\b/gi) || [])
+        .map(m => {
+          const clean = m.toLowerCase();
+          const app = LINKABLE_APPS.find(a => 
+            a.mention.toLowerCase() === clean || a.aliases.some(alias => alias.toLowerCase() === clean)
+          );
+          return app ? app.mention : m;
+        })
+    )
+  );
+
+  const handleRemoveLinkedMention = (mention: string) => {
+    const regex = new RegExp(`\\s*${mention}\\b`, 'gi');
+    onInputChange(input.replace(regex, '').trim());
+  };
+
   // AI Summary State
   const [chatSummary, setChatSummary] = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -689,6 +802,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   }, [shortcuts]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape' && isAtMenuOpen) {
+      e.preventDefault();
+      setShowAtAppMenu(false);
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendClick();
@@ -1036,8 +1154,36 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   const renderMenuCategories = () => (
     <div className="divide-y divide-white/10 text-xs">
-      {/* Category 1: Media & Files */}
+      {/* Quick @ App Linking */}
       <div className="pb-2">
+        <button
+          type="button"
+          onClick={() => {
+            setShowUploadMenu(false);
+            setShowAtAppMenu(true);
+          }}
+          className="w-full text-left px-2.5 py-2 text-xs text-neutral-200 hover:bg-cyan-500/20 rounded-xl flex items-center justify-between transition-colors group mb-1 border border-cyan-500/30 bg-cyan-950/20"
+        >
+          <div className="flex items-center space-x-2.5">
+            <div className="w-7 h-7 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-300 font-bold font-mono text-sm">
+              @
+            </div>
+            <div>
+              <div className="font-semibold text-cyan-200 flex items-center gap-1.5">
+                <span>Link App or Tool</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/30 text-cyan-200 font-mono">@ app</span>
+              </div>
+              <div className="text-[10px] text-neutral-400">Mention Create, Drive, Stats, Permissions & more</div>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+            Link
+          </span>
+        </button>
+      </div>
+
+      {/* Category 1: Media & Files */}
+      <div className="py-2">
         <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-2 py-1">
           Media & Files
         </div>
@@ -1882,7 +2028,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       <>
                         {msg.role === 'model' ? (
                           <>
-                            <SmartContentRenderer content={currentContent} onRunCode={handleRunCode} />
+                            <SmartContentRenderer 
+                              content={currentContent} 
+                              onRunCode={handleRunCode} 
+                              onAppLinkClick={handleAppLinkClick}
+                            />
 
                             {/* Rich Sources Viewer, Favicons, Thinking Process & Council Deliberation */}
                             <SourcesViewer 
@@ -1898,7 +2048,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           </>
                         ) : (
                           <div>
-                            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{currentContent}</p>
+                            <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                              {renderTextWithAppLinks(currentContent, handleAppLinkClick)}
+                            </div>
                             {msg.isEdited && (
                               <span className="text-[10px] opacity-75 italic block mt-1">(edited)</span>
                             )}
@@ -2412,6 +2564,24 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               </div>
             )}
 
+            {/* Active Linked Apps Pill Bar */}
+            {detectedLinkedMentions.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap px-3 py-1.5 mb-2 bg-[#14141e]/80 border border-cyan-500/30 rounded-2xl backdrop-blur-md shadow-lg animate-in fade-in slide-in-from-bottom-1">
+                <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1 mr-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                  Linked:
+                </span>
+                {detectedLinkedMentions.map((mention) => (
+                  <LinkedAppPill
+                    key={mention}
+                    mention={mention}
+                    onRemove={() => handleRemoveLinkedMention(mention)}
+                    onClick={() => handleAppLinkClick(mention)}
+                  />
+                ))}
+              </div>
+            )}
+
             {/* Main Rounded Input Pill (Like ChatGPT Mobile Screenshot 2) */}
             <div className="relative bg-[var(--card-bg)] rounded-3xl border border-[var(--border-color)] focus-within:border-white/30 transition-all shadow-xl flex items-end p-1.5 sm:p-2">
               
@@ -2471,6 +2641,39 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   </>
                 )}
               </div>
+
+              {/* @ App Linking Button */}
+              <div className="relative flex-shrink-0 ml-0.5">
+                <button
+                  type="button"
+                  onClick={() => setShowAtAppMenu(!showAtAppMenu)}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center font-mono font-bold text-sm transition-all ${
+                    showAtAppMenu || isAtMenuOpen
+                      ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/30'
+                      : 'text-[var(--text-secondary)] hover:text-cyan-300 hover:bg-white/10'
+                  }`}
+                  title="Link an App or Tool (@ App)"
+                >
+                  @
+                </button>
+              </div>
+
+              {/* @ App Linking Autocomplete Popover */}
+              {isAtMenuOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowAtAppMenu(false)}
+                  />
+                  <div className="absolute bottom-full left-0 mb-3 w-full max-w-lg z-50">
+                    <AppLinkingMenu
+                      filterQuery={currentAtMentionQuery || ''}
+                      onSelectApp={handleSelectApp}
+                      onClose={() => setShowAtAppMenu(false)}
+                    />
+                  </div>
+                </>
+              )}
 
               {/* App Commands Slash Autocomplete Popover */}
               {input.trim().startsWith('/') && (

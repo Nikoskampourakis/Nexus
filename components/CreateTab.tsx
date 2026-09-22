@@ -237,21 +237,43 @@ export const CreateTab: React.FC<CreateTabProps> = ({
   const [selectedStyle, setSelectedStyle] = useState<ArtStyle | null>(null);
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '9:16' | '16:9' | '4:3' | '3:4'>('1:1');
   const [batchCount, setBatchCount] = useState<number>(1);
-  const [quality, setQuality] = useState<'Standard' | 'HD' | 'Ultra Pro'>('HD');
+  const [quality, setQuality] = useState<'Standard' | 'HD' | 'Ultra Pro' | 'Cinema 8K'>('HD');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'styles' | 'gallery'>('styles');
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Power Options State (Advanced Studio Tuning)
+  const [showPowerOptions, setShowPowerOptions] = useState(false);
+  const [negativePrompt, setNegativePrompt] = useState('');
+  const [guidanceScale, setGuidanceScale] = useState(8);
+  const [lightingMode, setLightingMode] = useState<'Natural' | 'Cinematic Studio' | 'Golden Hour' | 'Cyberpunk Neon' | 'Dramatic Noir'>('Natural');
+  const [cameraLens, setCameraLens] = useState<'Standard 50mm' | 'Portrait 85mm Bokeh' | 'Wide 24mm' | 'Macro Close-Up'>('Standard 50mm');
+
   // Editor Modal State
   const [editingItem, setEditingItem] = useState<GeneratedImageItem | null>(null);
-  const [editorTool, setEditorTool] = useState<'edit_message' | 'remove_object' | 'move_object' | 'perspective_shift'>('edit_message');
+  const [editorTool, setEditorTool] = useState<'edit_message' | 'remove_object' | 'move_object' | 'perspective_shift' | 'area_select_edit'>('edit_message');
   const [editInstruction, setEditInstruction] = useState('');
   const [targetObject, setTargetObject] = useState('');
   const [moveDirection, setMoveDirection] = useState<'left' | 'center' | 'right' | 'up' | 'down'>('center');
-  const [perspectiveType, setPerspectiveType] = useState<'right_to_center' | 'left_to_center' | 'wide_angle' | 'low_angle' | 'high_angle' | 'three_quarter'>('right_to_center');
+  const [perspectiveType, setPerspectiveType] = useState<'right_to_center' | 'left_to_center' | 'wide_angle' | 'low_angle' | 'high_angle' | 'three_quarter' | 'custom_3d_drag'>('custom_3d_drag');
+  const [perspectiveMode, setPerspectiveMode] = useState<'3d_drag' | 'presets'>('3d_drag');
   const [isProcessingEdit, setIsProcessingEdit] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+
+  // Interactive Area Selection (Select objects/people to remove or link message to add/modify)
+  const [selectedArea, setSelectedArea] = useState<{ x: number; y: number; width: number; height: number; action: 'remove' | 'modify_or_add' } | null>(null);
+  const [isSelectingArea, setIsSelectingArea] = useState(false);
+  const [areaDragStart, setAreaDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [areaActionChoice, setAreaActionChoice] = useState<'remove' | 'modify_or_add'>('remove');
+  const [areaCustomPrompt, setAreaCustomPrompt] = useState('');
+
+  // Interactive 3D Perspective Dragging State
+  const [dragAngles, setDragAngles] = useState<{ rotateX: number; rotateY: number; scale: number }>({ rotateX: 0, rotateY: 0, scale: 1 });
+  const [isDraggingPerspective, setIsDraggingPerspective] = useState(false);
+  const [perspectiveDragStart, setPerspectiveDragStart] = useState<{ x: number; y: number; initialX: number; initialY: number } | null>(null);
+
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   // VISUAL GRID OVERLAY STATE (for aligning perspective, moving objects, rule of thirds)
   const [gridOverlay, setGridOverlay] = useState<'none' | 'rule_of_thirds' | 'perspective' | 'grid_4x4' | 'golden_ratio' | 'crosshair'>('none');
@@ -388,7 +410,11 @@ export const CreateTab: React.FC<CreateTabProps> = ({
           aspectRatio,
           styleName: selectedStyle?.name,
           stylePrompt: selectedStyle?.promptPrefix,
-          quality
+          quality,
+          negativePrompt: negativePrompt.trim() || undefined,
+          guidanceScale: guidanceScale,
+          lightingMode: lightingMode !== 'Natural' ? lightingMode : undefined,
+          cameraLens: cameraLens !== 'Standard 50mm' ? cameraLens : undefined,
         };
 
         const urls = await generateBatchImages(options, batchCount);
@@ -423,28 +449,51 @@ export const CreateTab: React.FC<CreateTabProps> = ({
     }
   };
 
-  // Handle Editor Execution (Remove, Move, Perspective Shift, Edit Message)
+  // Handle Editor Execution (Remove, Move, Perspective Shift, Edit Message, Area Select/Link)
   const handleExecuteEdit = async () => {
     if (!editingItem) return;
     setIsProcessingEdit(true);
     setErrorMessage(null);
 
     try {
+      const isAreaAction = !!selectedArea || editorTool === 'area_select_edit';
+      const effectiveMode: EditImageParams['mode'] = isAreaAction ? 'area_select_edit' : editorTool;
+      const effectivePerspectiveType = editorTool === 'perspective_shift' && perspectiveMode === '3d_drag'
+        ? 'custom_3d_drag'
+        : perspectiveType;
+
       const editParams: EditImageParams = {
         imageUrl: editingItem.url,
-        mode: editorTool,
-        instruction: editInstruction.trim(),
+        mode: effectiveMode,
+        instruction: isAreaAction && selectedArea?.action !== 'remove'
+          ? (areaCustomPrompt.trim() || editInstruction.trim() || 'Add and blend realistic element in this area')
+          : editInstruction.trim(),
         targetObject: targetObject.trim(),
         movementDirection: moveDirection,
-        perspectiveType: perspectiveType
+        perspectiveType: effectivePerspectiveType,
+        perspectiveAngles: dragAngles,
+        selectedArea: selectedArea || undefined,
+        quality: quality
       };
 
       const resultUrl = await editImageWithAI(editParams);
 
       let note = editInstruction.trim();
-      if (editorTool === 'remove_object') note = `Removed: ${targetObject || 'object'}`;
-      if (editorTool === 'move_object') note = `Moved ${targetObject || 'subject'} to ${moveDirection}`;
-      if (editorTool === 'perspective_shift') note = `Perspective shifted: ${perspectiveType.replace(/_/g, ' ')}`;
+      if (isAreaAction && selectedArea) {
+        if (selectedArea.action === 'remove') {
+          note = `Removed area: ${targetObject || 'selected object/person'}`;
+        } else {
+          note = `Area modified: ${areaCustomPrompt || editInstruction || 'custom addition'}`;
+        }
+      } else if (editorTool === 'remove_object') {
+        note = `Removed: ${targetObject || 'object'}`;
+      } else if (editorTool === 'move_object') {
+        note = `Moved ${targetObject || 'subject'} to ${moveDirection}`;
+      } else if (editorTool === 'perspective_shift') {
+        note = perspectiveMode === '3d_drag'
+          ? `3D Perspective: Pitch ${Math.round(dragAngles.rotateX)}°, Yaw ${Math.round(dragAngles.rotateY)}°`
+          : `Perspective shifted: ${perspectiveType.replace(/_/g, ' ')}`;
+      }
 
       const updatedItem: GeneratedImageItem = {
         ...editingItem,
@@ -463,11 +512,159 @@ export const CreateTab: React.FC<CreateTabProps> = ({
       setShowComparison(true);
       setEditInstruction('');
       setTargetObject('');
+      setSelectedArea(null);
+      setAreaCustomPrompt('');
     } catch (err: any) {
       console.error("Edit failed:", err);
       setErrorMessage(err.message || "Failed to process image edit. Please try again.");
     } finally {
       setIsProcessingEdit(false);
+    }
+  };
+
+  // Canvas Mouse & Touch Drag Event Handlers for 3D Perspective & Area Select
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (editorTool === 'perspective_shift' && perspectiveMode === '3d_drag') {
+      setIsDraggingPerspective(true);
+      setPerspectiveDragStart({
+        x: e.clientX,
+        y: e.clientY,
+        initialX: dragAngles.rotateX,
+        initialY: dragAngles.rotateY
+      });
+      return;
+    }
+
+    if (editorTool === 'area_select_edit' || editorTool === 'remove_object') {
+      if (!canvasContainerRef.current) return;
+      const rect = canvasContainerRef.current.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      const clickY = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+      setIsSelectingArea(true);
+      setAreaDragStart({ x: clickX, y: clickY });
+      setSelectedArea({
+        x: clickX,
+        y: clickY,
+        width: 0,
+        height: 0,
+        action: editorTool === 'remove_object' ? 'remove' : areaActionChoice
+      });
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDraggingPerspective && perspectiveDragStart) {
+      const deltaX = e.clientX - perspectiveDragStart.x;
+      const deltaY = e.clientY - perspectiveDragStart.y;
+      const newYaw = Math.max(-45, Math.min(45, perspectiveDragStart.initialY + deltaX * 0.35));
+      const newPitch = Math.max(-35, Math.min(35, perspectiveDragStart.initialX - deltaY * 0.3));
+      setDragAngles(prev => ({ ...prev, rotateX: newPitch, rotateY: newYaw }));
+      return;
+    }
+
+    if (isSelectingArea && areaDragStart && canvasContainerRef.current) {
+      const rect = canvasContainerRef.current.getBoundingClientRect();
+      const currentX = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      const currentY = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+
+      const left = Math.min(areaDragStart.x, currentX);
+      const top = Math.min(areaDragStart.y, currentY);
+      const width = Math.max(2, Math.abs(currentX - areaDragStart.x));
+      const height = Math.max(2, Math.abs(currentY - areaDragStart.y));
+
+      setSelectedArea({
+        x: left,
+        y: top,
+        width,
+        height,
+        action: editorTool === 'remove_object' ? 'remove' : areaActionChoice
+      });
+    }
+  };
+
+  const handleCanvasMouseUp = () => {
+    setIsDraggingPerspective(false);
+    setPerspectiveDragStart(null);
+    if (isSelectingArea) {
+      setIsSelectingArea(false);
+      setSelectedArea(prev => {
+        if (!prev) return null;
+        if (prev.width < 5 || prev.height < 5) {
+          const size = 25;
+          return {
+            x: Math.max(0, Math.min(100 - size, prev.x - size / 2)),
+            y: Math.max(0, Math.min(100 - size, prev.y - size / 2)),
+            width: size,
+            height: size,
+            action: prev.action
+          };
+        }
+        return prev;
+      });
+    }
+  };
+
+  // Touch handlers for mobile devices
+  const handleCanvasTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    if (editorTool === 'perspective_shift' && perspectiveMode === '3d_drag') {
+      setIsDraggingPerspective(true);
+      setPerspectiveDragStart({
+        x: touch.clientX,
+        y: touch.clientY,
+        initialX: dragAngles.rotateX,
+        initialY: dragAngles.rotateY
+      });
+      return;
+    }
+
+    if (editorTool === 'area_select_edit' || editorTool === 'remove_object') {
+      if (!canvasContainerRef.current) return;
+      const rect = canvasContainerRef.current.getBoundingClientRect();
+      const clickX = Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100));
+      const clickY = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / rect.height) * 100));
+      setIsSelectingArea(true);
+      setAreaDragStart({ x: clickX, y: clickY });
+      setSelectedArea({
+        x: clickX,
+        y: clickY,
+        width: 0,
+        height: 0,
+        action: editorTool === 'remove_object' ? 'remove' : areaActionChoice
+      });
+    }
+  };
+
+  const handleCanvasTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    if (isDraggingPerspective && perspectiveDragStart) {
+      const deltaX = touch.clientX - perspectiveDragStart.x;
+      const deltaY = touch.clientY - perspectiveDragStart.y;
+      const newYaw = Math.max(-45, Math.min(45, perspectiveDragStart.initialY + deltaX * 0.35));
+      const newPitch = Math.max(-35, Math.min(35, perspectiveDragStart.initialX - deltaY * 0.3));
+      setDragAngles(prev => ({ ...prev, rotateX: newPitch, rotateY: newYaw }));
+      return;
+    }
+
+    if (isSelectingArea && areaDragStart && canvasContainerRef.current) {
+      const rect = canvasContainerRef.current.getBoundingClientRect();
+      const currentX = Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100));
+      const currentY = Math.max(0, Math.min(100, ((touch.clientY - rect.top) / rect.height) * 100));
+
+      const left = Math.min(areaDragStart.x, currentX);
+      const top = Math.min(areaDragStart.y, currentY);
+      const width = Math.max(2, Math.abs(currentX - areaDragStart.x));
+      const height = Math.max(2, Math.abs(currentY - areaDragStart.y));
+
+      setSelectedArea({
+        x: left,
+        y: top,
+        width,
+        height,
+        action: editorTool === 'remove_object' ? 'remove' : areaActionChoice
+      });
     }
   };
 
@@ -818,23 +1015,179 @@ export const CreateTab: React.FC<CreateTabProps> = ({
             </div>
 
             {/* Quality Selector */}
-            <div className="hidden xs:flex items-center space-x-1.5">
-              <span className="text-[11px] text-[var(--text-secondary)]">Quality:</span>
-              {(['Standard', 'HD', 'Ultra Pro'] as const).map(q => (
+            <div className="flex items-center space-x-1 sm:space-x-1.5">
+              <span className="text-[11px] text-[var(--text-secondary)] hidden xs:inline">Quality:</span>
+              {(['Standard', 'HD', 'Ultra Pro', 'Cinema 8K'] as const).map(q => (
                 <button
                   key={q}
                   onClick={() => setQuality(q)}
                   className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${
                     quality === q
-                      ? 'bg-emerald-600 text-white shadow-sm scale-105'
-                      : 'text-[var(--text-secondary)] hover:text-white bg-[var(--card-bg)]'
+                      ? 'bg-emerald-600 text-white shadow-sm scale-105 ring-1 ring-emerald-400'
+                      : 'text-[var(--text-secondary)] hover:text-white bg-[var(--card-bg)] border border-white/5'
                   }`}
+                  title={`${q} generation quality`}
                 >
-                  {q}
+                  {q === 'Cinema 8K' ? '8K Cinema' : q === 'Ultra Pro' ? '4K Ultra' : q}
                 </button>
               ))}
             </div>
+
+            {/* Power Options Studio Button */}
+            <button
+              type="button"
+              onClick={() => setShowPowerOptions(!showPowerOptions)}
+              className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold flex items-center space-x-1 transition-all border ${
+                showPowerOptions || negativePrompt || lightingMode !== 'Natural' || cameraLens !== 'Standard 50mm'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm ring-1 ring-amber-400/30'
+                  : 'bg-[var(--card-bg)] text-neutral-300 border-white/10 hover:text-white hover:border-amber-400/40'
+              }`}
+              title="Configure Power Options: Lighting, Lens, Negative Prompts, Guidance"
+            >
+              <svg className="w-3 h-3 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span>Power Options</span>
+              {(negativePrompt || lightingMode !== 'Natural' || cameraLens !== 'Standard 50mm') && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+              )}
+            </button>
           </div>
+
+          {/* Power Options Studio Drawer / Modal */}
+          {showPowerOptions && (
+            <div className="mb-2 p-3 bg-[#151520] border border-amber-500/40 rounded-2xl shadow-2xl space-y-3 animate-in fade-in slide-in-from-bottom-2 text-xs">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <div className="flex items-center space-x-2">
+                  <div className="w-5 h-5 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-neutral-200 text-xs">Power Options & Quality Studio</h4>
+                    <p className="text-[10px] text-neutral-400">Fine-tune optics, lighting, negative constraints, and output fidelity</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPowerOptions(false)}
+                  className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {/* Lighting Simulation */}
+                <div>
+                  <label className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block mb-1">
+                    Dynamic Lighting
+                  </label>
+                  <select
+                    value={lightingMode}
+                    onChange={(e) => setLightingMode(e.target.value as any)}
+                    className="w-full bg-[#20202c] border border-white/10 rounded-xl p-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-400"
+                  >
+                    <option value="Natural">Natural Ambient Lighting</option>
+                    <option value="Cinematic Studio">Cinematic Studio (3-Point Softbox)</option>
+                    <option value="Golden Hour">Golden Hour Sunset Glow</option>
+                    <option value="Cyberpunk Neon">Cyberpunk Neon & Volumetric Hue</option>
+                    <option value="Dramatic Noir">Dramatic Film Noir Chiaroscuro</option>
+                  </select>
+                </div>
+
+                {/* Camera Optics Simulation */}
+                <div>
+                  <label className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block mb-1">
+                    Camera Lens Simulation
+                  </label>
+                  <select
+                    value={cameraLens}
+                    onChange={(e) => setCameraLens(e.target.value as any)}
+                    className="w-full bg-[#20202c] border border-white/10 rounded-xl p-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-400"
+                  >
+                    <option value="Standard 50mm">Standard 50mm Prime (Natural Perspective)</option>
+                    <option value="Portrait 85mm Bokeh">Portrait 85mm f/1.4 Bokeh Blur</option>
+                    <option value="Wide 24mm">Wide-Angle 24mm (Landscape / Room Scale)</option>
+                    <option value="Macro Close-Up">Macro Lens (Extreme Intricate Detail)</option>
+                  </select>
+                </div>
+
+                {/* Guidance Scale Slider */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">
+                      Prompt Adherence: {guidanceScale}
+                    </label>
+                    <span className="text-[10px] text-neutral-400">
+                      {guidanceScale < 6 ? 'Creative' : guidanceScale > 12 ? 'Strict' : 'Balanced'}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    step="1"
+                    value={guidanceScale}
+                    onChange={(e) => setGuidanceScale(Number(e.target.value))}
+                    className="w-full accent-amber-400 h-1.5 bg-neutral-700 rounded-lg cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Negative Prompt */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-bold text-rose-300 uppercase tracking-wider">
+                    Negative Prompt (What to Avoid / Exclude)
+                  </label>
+                  <span className="text-[10px] text-neutral-400">Optional</span>
+                </div>
+                <input
+                  type="text"
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
+                  placeholder="e.g. blurry, distorted anatomy, low contrast, text, bad hands, extra limbs..."
+                  className="w-full bg-[#20202c] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-rose-400"
+                />
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {['no blur', 'no distortion', 'no watermarks', 'clean background', 'photorealistic only'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setNegativePrompt(prev => prev ? `${prev}, ${tag}` : tag)}
+                      className="px-2 py-0.5 rounded text-[10px] bg-white/5 hover:bg-rose-500/20 text-neutral-400 hover:text-rose-300 border border-white/5 transition-colors"
+                    >
+                      + {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-1 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNegativePrompt('');
+                    setLightingMode('Natural');
+                    setCameraLens('Standard 50mm');
+                    setGuidanceScale(8);
+                  }}
+                  className="px-3 py-1 rounded-lg text-xs text-neutral-400 hover:text-white"
+                >
+                  Reset Defaults
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPowerOptions(false)}
+                  className="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow"
+                >
+                  Apply & Close
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Active Style / Staged Image Chips Bar */}
           {(selectedStyle || stagedImage) && (
@@ -1064,13 +1417,88 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                 </div>
 
                 {/* Main Interactive Canvas Wrapper with Rendered Grid Overlays */}
-                <div className="relative max-h-[55vh] max-w-full rounded-xl overflow-hidden border border-white/15 shadow-2xl flex items-center justify-center bg-black/60 my-auto">
+                <div 
+                  ref={canvasContainerRef}
+                  onMouseDown={handleCanvasMouseDown}
+                  onMouseMove={handleCanvasMouseMove}
+                  onMouseUp={handleCanvasMouseUp}
+                  onMouseLeave={handleCanvasMouseUp}
+                  onTouchStart={handleCanvasTouchStart}
+                  onTouchMove={handleCanvasTouchMove}
+                  onTouchEnd={handleCanvasTouchEnd}
+                  className={`relative max-h-[55vh] max-w-full rounded-xl overflow-hidden border border-white/15 shadow-2xl flex items-center justify-center bg-black/60 my-auto select-none ${
+                    editorTool === 'perspective_shift' && perspectiveMode === '3d_drag'
+                      ? 'cursor-grab active:cursor-grabbing'
+                      : (editorTool === 'area_select_edit' || editorTool === 'remove_object')
+                      ? 'cursor-crosshair'
+                      : ''
+                  }`}
+                  style={{ perspective: '900px' }}
+                >
                   
                   <img 
                     src={showComparison && editingItem.originalUrl ? editingItem.originalUrl : editingItem.url} 
                     alt="Canvas Preview"
-                    className="max-h-[50vh] max-w-full object-contain pointer-events-none"
+                    className="max-h-[50vh] max-w-full object-contain pointer-events-none transition-transform duration-75"
+                    style={
+                      editorTool === 'perspective_shift' && perspectiveMode === '3d_drag'
+                        ? {
+                            transform: `rotateX(${dragAngles.rotateX}deg) rotateY(${dragAngles.rotateY}deg) scale(${dragAngles.scale})`,
+                            transformStyle: 'preserve-3d',
+                          }
+                        : undefined
+                    }
                   />
+
+                  {/* 3D Perspective Drag Active HUD Overlay */}
+                  {editorTool === 'perspective_shift' && perspectiveMode === '3d_drag' && (
+                    <div className="absolute top-2 inset-x-2 flex items-center justify-between pointer-events-none z-20">
+                      <div className="bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-amber-500/40 text-[11px] font-mono text-amber-300 flex items-center space-x-2 shadow-lg">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span>3D Drag Active: Pitch <strong>{Math.round(dragAngles.rotateX)}°</strong>, Yaw <strong>{Math.round(dragAngles.rotateY)}°</strong></span>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setDragAngles({ rotateX: 0, rotateY: 0, scale: 1 })}
+                        className="pointer-events-auto bg-black/80 hover:bg-black text-[10px] text-neutral-300 hover:text-white px-2 py-1 rounded-lg border border-white/10 shadow"
+                      >
+                        Reset 0°
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Area Selection Box Overlay */}
+                  {selectedArea && selectedArea.width > 0 && (
+                    <div
+                      className={`absolute border-2 border-dashed rounded pointer-events-none z-20 transition-all ${
+                        selectedArea.action === 'remove'
+                          ? 'border-red-400 bg-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.4)]'
+                          : 'border-emerald-400 bg-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.4)]'
+                      }`}
+                      style={{
+                        left: `${selectedArea.x}%`,
+                        top: `${selectedArea.y}%`,
+                        width: `${selectedArea.width}%`,
+                        height: `${selectedArea.height}%`,
+                      }}
+                    >
+                      <div className="absolute -top-6 left-0 flex items-center space-x-1.5 bg-black/90 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-mono whitespace-nowrap border border-white/20 shadow-lg">
+                        <span className={selectedArea.action === 'remove' ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>
+                          {selectedArea.action === 'remove' ? '🗑️ Remove Area' : '➕ Link / Add Area'}
+                        </span>
+                        <span className="text-neutral-400">({Math.round(selectedArea.width)}% × {Math.round(selectedArea.height)}%)</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Helper Prompt Overlay for Area Selection */}
+                  {(editorTool === 'area_select_edit' || (editorTool === 'remove_object' && !selectedArea)) && !isSelectingArea && (
+                    <div className="absolute bottom-2 inset-x-2 flex justify-center pointer-events-none z-10">
+                      <div className="bg-black/75 backdrop-blur-md px-3 py-1 rounded-full border border-white/15 text-[10px] text-neutral-300 shadow-md">
+                        {selectedArea ? 'Area selected • Adjust instructions on the right' : 'Click & drag across image to highlight an object, person, or area'}
+                      </div>
+                    </div>
+                  )}
 
                   {/* RENDERED VISUAL GRID OVERLAY SVG */}
                   {gridOverlay !== 'none' && (
@@ -1214,8 +1642,9 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                 
                 <div>
                   {/* Tool Tabs Header */}
-                  <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-2.5">
-                    Select Editing Tool
+                  <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-2.5 flex items-center justify-between">
+                    <span>Select Editing Tool</span>
+                    <span className="text-[10px] text-cyan-400/80 font-normal">AI Powered Image Studio</span>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-1.5 mb-4">
@@ -1250,22 +1679,27 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                       <span className="truncate">Remove Tool</span>
                     </button>
 
-                    {/* Tool 3: Move Stuff from Images */}
+                    {/* Tool 3: Area Select & Link Tool */}
                     <button
-                      onClick={() => setEditorTool('move_object')}
+                      onClick={() => {
+                        setEditorTool('area_select_edit');
+                        if (!selectedArea) {
+                          setSelectedArea({ x: 25, y: 25, width: 50, height: 50, action: areaActionChoice });
+                        }
+                      }}
                       className={`p-2 rounded-xl text-xs font-medium border flex items-center space-x-2 transition-all text-left ${
-                        editorTool === 'move_object'
-                          ? 'bg-purple-600/20 border-purple-500 text-purple-300 shadow-sm'
+                        editorTool === 'area_select_edit'
+                          ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300 shadow-sm'
                           : 'bg-[var(--card-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-white'
                       }`}
                     >
-                      <svg className="w-4 h-4 flex-shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      <svg className="w-4 h-4 flex-shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                       </svg>
-                      <span className="truncate">Move Tool</span>
+                      <span className="truncate">Select Area & Link</span>
                     </button>
 
-                    {/* Tool 4: Perspective Shift */}
+                    {/* Tool 4: Change Perspective / 3D Drag */}
                     <button
                       onClick={() => setEditorTool('perspective_shift')}
                       className={`p-2 rounded-xl text-xs font-medium border flex items-center space-x-2 transition-all text-left ${
@@ -1275,9 +1709,9 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                       }`}
                     >
                       <svg className="w-4 h-4 flex-shrink-0 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
                       </svg>
-                      <span className="truncate">Perspective Shift</span>
+                      <span className="truncate">Change Perspective</span>
                     </button>
                   </div>
 
@@ -1321,11 +1755,27 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                     </div>
                   )}
 
+                  {/* Tool: Remove Object */}
                   {editorTool === 'remove_object' && (
                     <div className="space-y-3 animate-fade-in">
                       <div className="p-2.5 rounded-xl bg-red-950/20 border border-red-500/30 text-xs text-red-200">
-                        Specify what object, person, or element to cleanly remove. Gemini will seamlessly inpaint and reconstruct the background.
+                        Select objects or people in the image to remove. You can drag a box directly on the image or describe what to remove below.
                       </div>
+
+                      {selectedArea && selectedArea.width > 0 && (
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-xs">
+                          <span className="text-red-300">
+                            🎯 Canvas Area Box Selected: ({Math.round(selectedArea.width)}% × {Math.round(selectedArea.height)}%)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedArea(null)}
+                            className="text-neutral-400 hover:text-red-300 text-[10px] underline"
+                          >
+                            Clear Box
+                          </button>
+                        </div>
+                      )}
 
                       <div>
                         <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
@@ -1363,47 +1813,107 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                     </div>
                   )}
 
-                  {editorTool === 'move_object' && (
+                  {/* Tool: Area Select & Link Message */}
+                  {editorTool === 'area_select_edit' && (
                     <div className="space-y-3 animate-fade-in">
-                      <div className="p-2.5 rounded-xl bg-purple-950/20 border border-purple-500/30 text-xs text-purple-200">
-                        Pick an object or person to move. Use the <strong>4x4 Align or 3x3 Grid</strong> to compose the repositioned subject.
+                      <div className="p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs text-emerald-200">
+                        <strong>Area Select & Link Tool:</strong> Drag on the preview image to select a zone, then link an instruction to add or modify elements specifically inside that area.
                       </div>
 
+                      {/* Area Action Toggle */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">
+                          Action for Selected Area
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAreaActionChoice('add');
+                              if (selectedArea) setSelectedArea({ ...selectedArea, action: 'add' });
+                            }}
+                            className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${
+                              areaActionChoice === 'add'
+                                ? 'bg-emerald-600 text-white border-emerald-400 shadow'
+                                : 'bg-[var(--card-bg)] text-neutral-400 border-[var(--border-color)] hover:text-white'
+                            }`}
+                          >
+                            ➕ Add Something Here
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAreaActionChoice('modify');
+                              if (selectedArea) setSelectedArea({ ...selectedArea, action: 'modify' });
+                            }}
+                            className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all ${
+                              areaActionChoice === 'modify'
+                                ? 'bg-cyan-600 text-white border-cyan-400 shadow'
+                                : 'bg-[var(--card-bg)] text-neutral-400 border-[var(--border-color)] hover:text-white'
+                            }`}
+                          >
+                            ✏️ Modify / Change Area
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Area Position Coordinates & Reset */}
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/40 border border-white/10 text-[11px]">
+                        <span className="text-neutral-300">
+                          {selectedArea 
+                            ? `Box: X ${Math.round(selectedArea.x)}%, Y ${Math.round(selectedArea.y)}% (${Math.round(selectedArea.width)}% × ${Math.round(selectedArea.height)}%)`
+                            : 'No box selected. Drag on image to create box.'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedArea({ x: 20, y: 20, width: 60, height: 60, action: areaActionChoice })}
+                          className="text-emerald-400 hover:text-emerald-300 text-[10px] underline"
+                        >
+                          Auto Center (60%)
+                        </button>
+                      </div>
+
+                      {/* Linked Instruction Message */}
                       <div>
                         <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
-                          Which Subject or Object to Move?
+                          Linked Message / Instruction for this Area
                         </label>
-                        <input
-                          type="text"
-                          value={targetObject}
-                          onChange={(e) => setTargetObject(e.target.value)}
-                          placeholder="e.g. the main person, the dog, the vase..."
-                          className="w-full bg-[var(--card-bg)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-purple-500"
+                        <textarea
+                          rows={2}
+                          value={areaCustomPrompt}
+                          onChange={(e) => setAreaCustomPrompt(e.target.value)}
+                          placeholder={
+                            areaActionChoice === 'add'
+                              ? "e.g. Add an adorable fluffy golden retriever dog sitting here, add a glowing neon sign..."
+                              : "e.g. Change clothing to a formal dark tuxedo, replace this object with a crystal orb..."
+                          }
+                          className="w-full bg-[var(--card-bg)] border border-[var(--border-color)] rounded-xl p-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-emerald-500"
                         />
                       </div>
 
+                      {/* Quick Idea Chips */}
                       <div>
-                        <label className="block text-xs font-medium text-[var(--text-primary)] mb-1.5">
-                          Move Direction / Target Position:
-                        </label>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {[
-                            { id: 'left', label: '← Left' },
-                            { id: 'center', label: '• Center' },
-                            { id: 'right', label: 'Right →' },
-                            { id: 'up', label: '↑ Up' },
-                            { id: 'down', label: '↓ Down' },
-                          ].map((dir) => (
+                        <span className="text-[10px] text-[var(--text-secondary)] uppercase">Quick Suggestions:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(areaActionChoice === 'add' ? [
+                            "Add stylish sunglasses",
+                            "Add warm glowing candles",
+                            "Add blooming floral vines",
+                            "Add a friendly pet companion",
+                            "Add a floating holographic HUD"
+                          ] : [
+                            "Change hair style and color",
+                            "Swap outfit for futuristic cyber jacket",
+                            "Turn this surface into polished marble",
+                            "Enhance lighting and sharpness here"
+                          ]).map((s, i) => (
                             <button
-                              key={dir.id}
-                              onClick={() => setMoveDirection(dir.id as any)}
-                              className={`py-1.5 px-2 rounded-lg text-xs font-medium border transition-all ${
-                                moveDirection === dir.id
-                                  ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
-                                  : 'bg-[var(--card-bg)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-white'
-                              }`}
+                              key={i}
+                              type="button"
+                              onClick={() => setAreaCustomPrompt(s)}
+                              className="px-2 py-0.5 text-[10px] rounded-md bg-[var(--card-bg)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-emerald-300 hover:border-emerald-400 transition-colors"
                             >
-                              {dir.label}
+                              + {s}
                             </button>
                           ))}
                         </div>
@@ -1411,44 +1921,152 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                     </div>
                   )}
 
+                  {/* Tool: Change Perspective / 3D Drag */}
                   {editorTool === 'perspective_shift' && (
                     <div className="space-y-3 animate-fade-in">
-                      <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30 text-xs text-amber-200">
-                        <strong>Perspective Re-centering:</strong> Shifts the camera angle and re-aligns perspective. The <strong>Perspective Vanishing Grid</strong> overlay assists in visualizing convergence.
+                      {/* Sub-mode selector: Interactive 3D Drag vs Camera Presets */}
+                      <div className="flex rounded-xl p-1 bg-black/40 border border-white/10">
+                        <button
+                          type="button"
+                          onClick={() => setPerspectiveMode('3d_drag')}
+                          className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-1 ${
+                            perspectiveMode === '3d_drag'
+                              ? 'bg-amber-500 text-black shadow'
+                              : 'text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+                          </svg>
+                          <span>Interactive 3D Drag</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPerspectiveMode('preset')}
+                          className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
+                            perspectiveMode === 'preset'
+                              ? 'bg-amber-500 text-black shadow'
+                              : 'text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          Camera Presets
+                        </button>
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-medium text-[var(--text-primary)] mb-1.5">
-                          Perspective & Re-framing Angle:
-                        </label>
-                        <div className="space-y-1.5">
-                          {[
-                            { id: 'right_to_center', label: 'Right to Center (Center Stage)', desc: 'Re-frames subject from right edge into the exact center' },
-                            { id: 'left_to_center', label: 'Left to Center', desc: 'Re-frames subject from left edge into the center' },
-                            { id: 'wide_angle', label: 'Wide-Angle Field of View', desc: 'Expands scene context with a cinematic wide lens' },
-                            { id: 'low_angle', label: 'Heroic Low Angle', desc: 'Camera tilts up towards subject for dramatic stature' },
-                            { id: 'high_angle', label: 'High Overhead Angle', desc: 'Overhead camera looking down' },
-                            { id: 'three_quarter', label: 'Cinematic 3/4 Profile', desc: 'Rotates camera perspective around subject' },
-                          ].map((p) => (
-                            <div
-                              key={p.id}
-                              onClick={() => setPerspectiveType(p.id as any)}
-                              className={`p-2 rounded-xl border cursor-pointer transition-all ${
-                                perspectiveType === p.id
-                                  ? 'bg-amber-600/20 border-amber-500 text-amber-300 shadow-sm'
-                                  : 'bg-[var(--card-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-white'
-                              }`}
-                            >
-                              <div className="font-semibold text-xs text-[var(--text-primary)]">
-                                {p.label}
+                      {perspectiveMode === '3d_drag' ? (
+                        <div className="space-y-2.5">
+                          <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 space-y-1">
+                            <p className="font-semibold">Drag directly on the image to rotate perspective in 3D!</p>
+                            <p className="text-[10px] text-amber-300/80">
+                              Fine-tune the horizontal (Yaw) and vertical (Pitch) angles below. Gemini will re-render the scene from your new camera angle.
+                            </p>
+                          </div>
+
+                          {/* Live Angle Sliders */}
+                          <div className="space-y-2 bg-black/30 p-2.5 rounded-xl border border-white/10">
+                            {/* Horizontal Yaw Angle */}
+                            <div>
+                              <div className="flex justify-between text-[11px] mb-0.5">
+                                <span className="text-neutral-300 font-medium">Horizontal Yaw (Left/Right)</span>
+                                <span className="text-amber-400 font-mono font-bold">{Math.round(dragAngles.rotateY)}°</span>
                               </div>
-                              <div className="text-[10px] text-[var(--text-secondary)]">
-                                {p.desc}
-                              </div>
+                              <input
+                                type="range"
+                                min="-45"
+                                max="45"
+                                value={dragAngles.rotateY}
+                                onChange={(e) => setDragAngles(prev => ({ ...prev, rotateY: Number(e.target.value) }))}
+                                className="w-full accent-amber-400 h-1.5 bg-neutral-700 rounded-lg cursor-pointer"
+                              />
                             </div>
-                          ))}
+
+                            {/* Vertical Pitch Angle */}
+                            <div>
+                              <div className="flex justify-between text-[11px] mb-0.5">
+                                <span className="text-neutral-300 font-medium">Vertical Pitch (Tilt Up/Down)</span>
+                                <span className="text-amber-400 font-mono font-bold">{Math.round(dragAngles.rotateX)}°</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="-35"
+                                max="35"
+                                value={dragAngles.rotateX}
+                                onChange={(e) => setDragAngles(prev => ({ ...prev, rotateX: Number(e.target.value) }))}
+                                className="w-full accent-amber-400 h-1.5 bg-neutral-700 rounded-lg cursor-pointer"
+                              />
+                            </div>
+
+                            {/* Zoom / Field Scale */}
+                            <div>
+                              <div className="flex justify-between text-[11px] mb-0.5">
+                                <span className="text-neutral-300 font-medium">Depth Zoom / Scale</span>
+                                <span className="text-amber-400 font-mono font-bold">{dragAngles.scale.toFixed(2)}x</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0.8"
+                                max="1.3"
+                                step="0.05"
+                                value={dragAngles.scale}
+                                onChange={(e) => setDragAngles(prev => ({ ...prev, scale: Number(e.target.value) }))}
+                                className="w-full accent-amber-400 h-1.5 bg-neutral-700 rounded-lg cursor-pointer"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Quick Angle Presets */}
+                          <div>
+                            <span className="text-[10px] text-[var(--text-secondary)] uppercase">Quick Angle Snaps:</span>
+                            <div className="grid grid-cols-4 gap-1 mt-1">
+                              {[
+                                { label: '3/4 Left', x: -5, y: -25 },
+                                { label: 'Front', x: 0, y: 0 },
+                                { label: '3/4 Right', x: -5, y: 25 },
+                                { label: 'Hero Low', x: -18, y: 0 },
+                              ].map((snap, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => setDragAngles({ rotateX: snap.x, rotateY: snap.y, scale: 1 })}
+                                  className="py-1 text-[10px] rounded-lg bg-[var(--card-bg)] border border-[var(--border-color)] text-neutral-300 hover:text-white hover:border-amber-400 transition-colors"
+                                >
+                                  {snap.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {[
+                              { id: 'right_to_center', label: 'Right to Center (Center Stage)', desc: 'Re-frames subject from right edge into the exact center' },
+                              { id: 'left_to_center', label: 'Left to Center', desc: 'Re-frames subject from left edge into the center' },
+                              { id: 'wide_angle', label: 'Wide-Angle Field of View', desc: 'Expands scene context with a cinematic wide lens' },
+                              { id: 'low_angle', label: 'Heroic Low Angle', desc: 'Camera tilts up towards subject for dramatic stature' },
+                              { id: 'high_angle', label: 'High Overhead Angle', desc: 'Overhead camera looking down' },
+                              { id: 'three_quarter', label: 'Cinematic 3/4 Profile', desc: 'Rotates camera perspective around subject' },
+                            ].map((p) => (
+                              <div
+                                key={p.id}
+                                onClick={() => setPerspectiveType(p.id as any)}
+                                className={`p-2 rounded-xl border cursor-pointer transition-all ${
+                                  perspectiveType === p.id
+                                    ? 'bg-amber-600/20 border-amber-500 text-amber-300 shadow-sm'
+                                    : 'bg-[var(--card-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-white'
+                                }`}
+                              >
+                                <div className="font-semibold text-xs text-[var(--text-primary)]">
+                                  {p.label}
+                                </div>
+                                <div className="text-[10px] text-[var(--text-secondary)]">
+                                  {p.desc}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       <div>
                         <label className="block text-xs font-medium text-[var(--text-primary)] mb-1">
@@ -1476,8 +2094,8 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                         ? 'bg-gray-700 cursor-not-allowed text-gray-400'
                         : editorTool === 'remove_object'
                         ? 'bg-red-600 hover:bg-red-500'
-                        : editorTool === 'move_object'
-                        ? 'bg-purple-600 hover:bg-purple-500'
+                        : editorTool === 'area_select_edit'
+                        ? 'bg-emerald-600 hover:bg-emerald-500'
                         : editorTool === 'perspective_shift'
                         ? 'bg-amber-600 hover:bg-amber-500'
                         : 'bg-cyan-600 hover:bg-cyan-500'
@@ -1497,9 +2115,12 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                         <span>
-                          {editorTool === 'remove_object' ? 'Execute Object Removal' :
-                           editorTool === 'move_object' ? 'Move & Reconstruct' :
-                           editorTool === 'perspective_shift' ? 'Apply Perspective Shift' :
+                          {editorTool === 'remove_object' 
+                            ? (selectedArea ? 'Remove Selected Area Box' : 'Execute Object Removal') :
+                           editorTool === 'area_select_edit'
+                            ? (areaActionChoice === 'add' ? 'Add Elements to Selected Area' : 'Modify Selected Area') :
+                           editorTool === 'perspective_shift'
+                            ? (perspectiveMode === '3d_drag' ? `Render 3D Perspective (${Math.round(dragAngles.rotateY)}° Yaw, ${Math.round(dragAngles.rotateX)}° Pitch)` : 'Apply Perspective Shift') :
                            'Apply Edit'}
                         </span>
                       </>

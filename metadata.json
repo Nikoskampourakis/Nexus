@@ -3,7 +3,8 @@
   "description": "An advanced interface for building, customizing, and interacting with virtual AI models. Features real-time voice & camera Live Mode, Image Studio, Chat Export to PDF/Markdown, Word & PowerPoint generation, ZIP/TAR archive inspection, and Google Workspace integration for Gmail, Google Drive, Sheets, Docs, Calendar, and Tasks.",
   "requestFramePermissions": [
     "microphone",
-    "camera"
+    "camera",
+    "geolocation"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

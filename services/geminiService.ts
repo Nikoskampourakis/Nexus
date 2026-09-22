@@ -117,7 +117,11 @@ export interface GenerateImageOptions {
   aspectRatio?: '1:1' | '9:16' | '16:9' | '4:3' | '3:4';
   styleName?: string;
   stylePrompt?: string;
-  quality?: 'Standard' | 'HD' | 'Ultra Pro';
+  quality?: 'Standard' | 'HD' | 'Ultra Pro' | 'Cinema 8K';
+  negativePrompt?: string;
+  guidanceScale?: number;
+  lightingMode?: 'Natural' | 'Cinematic Studio' | 'Golden Hour' | 'Cyberpunk Neon' | 'Dramatic Noir';
+  cameraLens?: 'Standard 50mm' | 'Portrait 85mm Bokeh' | 'Wide 24mm' | 'Macro Close-Up';
 }
 
 export const generateSingleImage = async (
@@ -127,7 +131,10 @@ export const generateSingleImage = async (
   let prompt = '';
   let aspectRatio: '1:1' | '9:16' | '16:9' | '4:3' | '3:4' = '1:1';
   let stylePrompt: string | undefined;
-  let quality: 'Standard' | 'HD' | 'Ultra Pro' = 'HD';
+  let quality: 'Standard' | 'HD' | 'Ultra Pro' | 'Cinema 8K' = 'HD';
+  let negativePrompt: string | undefined;
+  let lightingMode: string | undefined;
+  let cameraLens: string | undefined;
 
   if (typeof optionsOrPrompt === 'string') {
     prompt = optionsOrPrompt.trim();
@@ -136,12 +143,18 @@ export const generateSingleImage = async (
       if (extraOptions.stylePrompt) stylePrompt = extraOptions.stylePrompt;
       else if (extraOptions.style) stylePrompt = extraOptions.style;
       if (extraOptions.quality) quality = extraOptions.quality;
+      if (extraOptions.negativePrompt) negativePrompt = extraOptions.negativePrompt;
+      if (extraOptions.lightingMode) lightingMode = extraOptions.lightingMode;
+      if (extraOptions.cameraLens) cameraLens = extraOptions.cameraLens;
     }
   } else if (typeof optionsOrPrompt === 'object' && optionsOrPrompt !== null) {
     prompt = (optionsOrPrompt.prompt || '').trim();
     if (optionsOrPrompt.aspectRatio) aspectRatio = optionsOrPrompt.aspectRatio;
     if (optionsOrPrompt.stylePrompt) stylePrompt = optionsOrPrompt.stylePrompt;
     if (optionsOrPrompt.quality) quality = optionsOrPrompt.quality;
+    if (optionsOrPrompt.negativePrompt) negativePrompt = optionsOrPrompt.negativePrompt;
+    if (optionsOrPrompt.lightingMode) lightingMode = optionsOrPrompt.lightingMode;
+    if (optionsOrPrompt.cameraLens) cameraLens = optionsOrPrompt.cameraLens;
   }
 
   if (!prompt) {
@@ -151,11 +164,31 @@ export const generateSingleImage = async (
   const qualityToSizeMap: Record<string, string> = {
     'Standard': '512px',
     'HD': '1K',
-    'Ultra Pro': '2K'
+    'Ultra Pro': '2K',
+    'Cinema 8K': '2K'
   };
   const internalSize = qualityToSizeMap[quality] || '1K';
 
-  const fullPrompt = stylePrompt ? `${stylePrompt}: ${prompt}` : prompt;
+  let powerModifiers = '';
+  if (quality === 'Cinema 8K') {
+    powerModifiers += ', ultra-high fidelity masterpiece 8K resolution, dynamic range, crisp raytraced textures';
+  } else if (quality === 'Ultra Pro') {
+    powerModifiers += ', studio quality 4K resolution, ultra-fine details';
+  }
+
+  if (lightingMode && lightingMode !== 'Natural') {
+    powerModifiers += `, ${lightingMode.toLowerCase()} lighting`;
+  }
+
+  if (cameraLens) {
+    powerModifiers += `, captured with ${cameraLens.toLowerCase()} lens`;
+  }
+
+  if (negativePrompt?.trim()) {
+    powerModifiers += ` (Avoid: ${negativePrompt.trim()})`;
+  }
+
+  const fullPrompt = stylePrompt ? `${stylePrompt}: ${prompt}${powerModifiers}` : `${prompt}${powerModifiers}`;
 
   // 1. Try primary image generation model: gemini-3.1-flash-image
   try {
@@ -266,15 +299,29 @@ export const generateBatchImages = async (
 
 export interface EditImageParams {
   imageUrl: string; // data URL or pure base64
-  mode: 'edit_message' | 'remove_object' | 'move_object' | 'perspective_shift';
+  mode: 'edit_message' | 'remove_object' | 'move_object' | 'perspective_shift' | 'area_select_edit';
   instruction: string;
   targetObject?: string;
   movementDirection?: 'left' | 'center' | 'right' | 'up' | 'down';
-  perspectiveType?: 'right_to_center' | 'left_to_center' | 'wide_angle' | 'low_angle' | 'high_angle' | 'three_quarter';
+  perspectiveType?: 'right_to_center' | 'left_to_center' | 'wide_angle' | 'low_angle' | 'high_angle' | 'three_quarter' | 'custom_3d_drag';
+  perspectiveAngles?: {
+    rotateX: number; // pitch (-45 to 45 deg)
+    rotateY: number; // yaw (-45 to 45 deg)
+    scale: number;
+    skewX?: number;
+  };
+  selectedArea?: {
+    x: number; // percentage 0-100
+    y: number; // percentage 0-100
+    width: number; // percentage 0-100
+    height: number; // percentage 0-100
+    action: 'remove' | 'modify_or_add' | 'add' | 'modify';
+  };
+  quality?: 'Standard' | 'HD' | 'Ultra Pro' | 'Cinema 8K';
 }
 
 export const editImageWithAI = async (params: EditImageParams): Promise<string> => {
-  const { imageUrl, mode, instruction, targetObject, movementDirection, perspectiveType } = params;
+  const { imageUrl, mode, instruction, targetObject, movementDirection, perspectiveType, perspectiveAngles, selectedArea } = params;
 
   // Extract pure base64 and mimeType from data URL if needed
   let base64Data = imageUrl;
@@ -291,7 +338,16 @@ export const editImageWithAI = async (params: EditImageParams): Promise<string> 
   // Construct comprehensive surgical AI edit instructions
   let finalPrompt = instruction;
 
-  if (mode === 'remove_object') {
+  if (mode === 'area_select_edit' && selectedArea) {
+    const areaCoords = `at roughly X:${Math.round(selectedArea.x)}%, Y:${Math.round(selectedArea.y)}%, width:${Math.round(selectedArea.width)}%, height:${Math.round(selectedArea.height)}% of the frame`;
+    if (selectedArea.action === 'remove') {
+      const target = targetObject || instruction || 'the object or person within this marked boundary';
+      finalPrompt = `Surgically remove ${target} located specifically ${areaCoords}. Seamlessly inpaint, reconstruct, and blend the background behind this area with photorealistic texture, matching lighting, natural shadows, and accurate perspective, completely erasing all traces of the removed subject. Keep everything else outside this selected region unchanged.`;
+    } else {
+      // modify_or_add
+      finalPrompt = `In the targeted area ${areaCoords}, perform the following modification or addition: "${instruction}". Seamlessly integrate and blend this new element or change into the scene, precisely matching the ambient lighting, shadows, colors, resolution, and camera perspective of the surrounding image.`;
+    }
+  } else if (mode === 'remove_object') {
     const target = targetObject || instruction || 'the selected object';
     finalPrompt = `Surgically remove ${target} from this image. Seamlessly inpaint and reconstruct the background behind it with realistic texture, matching lighting, natural shadows, and accurate perspective, completely erasing all traces of ${target}. Keep everything else in the image identical.`;
   } else if (mode === 'move_object') {
@@ -300,7 +356,13 @@ export const editImageWithAI = async (params: EditImageParams): Promise<string> 
     finalPrompt = `Reposition and move ${target} in this image so it is positioned towards the ${dir} of the frame. Inpaint and seamlessly reconstruct the original area where ${target} was located to match the background environment. Ensure the moved subject retains their exact appearance, proportions, and casts realistic shadows consistent with the scene lighting.`;
   } else if (mode === 'perspective_shift') {
     let pDesc = 'shift the camera perspective to center the subject directly in the frame like iOS Center Stage';
-    if (perspectiveType === 'right_to_center') {
+    if (perspectiveType === 'custom_3d_drag' && perspectiveAngles) {
+      const pitchDesc = perspectiveAngles.rotateX > 5 ? `tilted up by ${Math.round(perspectiveAngles.rotateX)}° (low-angle view)` :
+                        perspectiveAngles.rotateX < -5 ? `tilted down by ${Math.round(Math.abs(perspectiveAngles.rotateX))}° (high-angle overhead view)` : 'level horizon';
+      const yawDesc = perspectiveAngles.rotateY > 5 ? `rotated ${Math.round(perspectiveAngles.rotateY)}° to the right (viewed from right angle)` :
+                      perspectiveAngles.rotateY < -5 ? `rotated ${Math.round(Math.abs(perspectiveAngles.rotateY))}° to the left (viewed from left angle)` : 'facing straight on';
+      pDesc = `re-render and transform the 3D camera perspective of the entire scene with an interactive camera rotation of: pitch ${pitchDesc}, yaw ${yawDesc}, and scale ${perspectiveAngles.scale.toFixed(2)}x. Re-calculate the vanishing point, line convergence, perspective distortion, and ground plane shadows accordingly`;
+    } else if (perspectiveType === 'right_to_center') {
       pDesc = 're-frame and change the camera perspective so the subject (currently on the right side) is positioned directly in the center of the frame, expanding the scene context on the right and balancing the visual perspective seamlessly, like iOS 27 smart re-framing';
     } else if (perspectiveType === 'left_to_center') {
       pDesc = 're-frame and change the camera perspective so the subject (currently on the left side) is positioned directly in the center of the frame with balanced camera framing';

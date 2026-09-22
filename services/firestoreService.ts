@@ -64,6 +64,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
 // Validate connection to Firestore
 export async function testConnection() {
+  if (!db) return;
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
@@ -73,14 +74,16 @@ export async function testConnection() {
   }
 }
 
-// Collection references
-const sessionsRef = collection(db, 'chatSessions');
-const foldersRef = collection(db, 'chatFolders');
-const modelsRef = collection(db, 'virtualModels');
-const usersRef = collection(db, 'users');
+// Collection references helper
+const getSessionsRef = () => db ? collection(db, 'chatSessions') : null;
+const getFoldersRef = () => db ? collection(db, 'chatFolders') : null;
+const getModelsRef = () => db ? collection(db, 'virtualModels') : null;
+const getUsersRef = () => db ? collection(db, 'users') : null;
 
 // User Settings
 export const saveUserSettings = async (userId: string, data: Partial<{ personalization: PersonalizationConfig, themeId: string }>) => {
+  const usersRef = getUsersRef();
+  if (!db || !usersRef) return;
   const path = `users/${userId}`;
   try {
     await setDoc(doc(usersRef, userId), {
@@ -93,6 +96,8 @@ export const saveUserSettings = async (userId: string, data: Partial<{ personali
 };
 
 export const getUserSettings = async (userId: string) => {
+  const usersRef = getUsersRef();
+  if (!db || !usersRef) return null;
   const path = `users/${userId}`;
   try {
     const snap = await getDoc(doc(usersRef, userId));
@@ -104,6 +109,8 @@ export const getUserSettings = async (userId: string) => {
 
 // Chat Sessions
 export const saveChatSession = async (userId: string, session: ChatSession) => {
+  const sessionsRef = getSessionsRef();
+  if (!db || !sessionsRef) return;
   const path = `chatSessions/${session.id}`;
   try {
     await setDoc(doc(sessionsRef, session.id), {
@@ -117,6 +124,8 @@ export const saveChatSession = async (userId: string, session: ChatSession) => {
 };
 
 export const deleteChatSession = async (sessionId: string) => {
+  const sessionsRef = getSessionsRef();
+  if (!db || !sessionsRef) return;
   const path = `chatSessions/${sessionId}`;
   try {
     await deleteDoc(doc(sessionsRef, sessionId));
@@ -126,6 +135,10 @@ export const deleteChatSession = async (sessionId: string) => {
 };
 
 export const subscribeToSessions = (userId: string, callback: (sessions: ChatSession[]) => void) => {
+  const sessionsRef = getSessionsRef();
+  if (!db || !sessionsRef) {
+    return () => {};
+  }
   const path = 'chatSessions';
   const q = query(
     sessionsRef, 
@@ -143,6 +156,8 @@ export const subscribeToSessions = (userId: string, callback: (sessions: ChatSes
 
 // Chat Folders
 export const saveFolder = async (userId: string, folder: ChatFolder) => {
+  const foldersRef = getFoldersRef();
+  if (!db || !foldersRef) return;
   const path = `chatFolders/${folder.id}`;
   try {
     await setDoc(doc(foldersRef, folder.id), {
@@ -155,6 +170,8 @@ export const saveFolder = async (userId: string, folder: ChatFolder) => {
 };
 
 export const deleteFolder = async (folderId: string) => {
+  const foldersRef = getFoldersRef();
+  if (!db || !foldersRef) return;
   const path = `chatFolders/${folderId}`;
   try {
     await deleteDoc(doc(foldersRef, folderId));
@@ -164,6 +181,8 @@ export const deleteFolder = async (folderId: string) => {
 };
 
 export const getFolders = async (userId: string) => {
+  const foldersRef = getFoldersRef();
+  if (!db || !foldersRef) return [];
   const path = 'chatFolders';
   try {
     const q = query(foldersRef, where('userId', '==', userId));
@@ -176,6 +195,8 @@ export const getFolders = async (userId: string) => {
 
 // Virtual Models
 export const saveVirtualModel = async (userId: string, model: VirtualModel) => {
+  const modelsRef = getModelsRef();
+  if (!db || !modelsRef) return;
   const path = `virtualModels/${model.id}`;
   try {
     await setDoc(doc(modelsRef, model.id), {
@@ -188,6 +209,8 @@ export const saveVirtualModel = async (userId: string, model: VirtualModel) => {
 };
 
 export const deleteVirtualModel = async (modelId: string) => {
+  const modelsRef = getModelsRef();
+  if (!db || !modelsRef) return;
   const path = `virtualModels/${modelId}`;
   try {
     await deleteDoc(doc(modelsRef, modelId));
@@ -197,6 +220,8 @@ export const deleteVirtualModel = async (modelId: string) => {
 };
 
 export const getVirtualModels = async (userId: string) => {
+  const modelsRef = getModelsRef();
+  if (!db || !modelsRef) return [];
   const path = 'virtualModels';
   try {
     const q = query(modelsRef, where('userId', '==', userId));

@@ -367,6 +367,19 @@ export const deleteStoredCreation = async (id: string): Promise<GeneratedImageIt
 
 const STATS_KEY = 'nexus_user_statistics';
 
+export interface DailyStatRecord {
+  date: string; // YYYY-MM-DD
+  promptTokens: number;
+  responseTokens: number;
+  totalTokens: number;
+  timeSpentSeconds: number;
+  userMessages: number;
+  modelMessages: number;
+  imagesCreated: number;
+  workspaceCalls: number;
+  hourlyActivity: number[]; // 24 slots (0..23)
+}
+
 export interface UserStatistics {
   timeSpentSeconds: number;
   totalMessagesUser: number;
@@ -381,6 +394,7 @@ export interface UserStatistics {
   firstUsedDate: string;
   lastActiveDate: string;
   dailyUsageDates: string[]; // Set of YYYY-MM-DD
+  dailyHistory?: Record<string, DailyStatRecord>; // Map of YYYY-MM-DD -> DailyStatRecord
 }
 
 const DEFAULT_STATS: UserStatistics = {
@@ -396,7 +410,27 @@ const DEFAULT_STATS: UserStatistics = {
   modelUsageBreakdown: {},
   firstUsedDate: new Date().toISOString(),
   lastActiveDate: new Date().toISOString(),
-  dailyUsageDates: [new Date().toISOString().slice(0, 10)]
+  dailyUsageDates: [new Date().toISOString().slice(0, 10)],
+  dailyHistory: {}
+};
+
+const getOrCreateTodayRecord = (stats: UserStatistics, today: string): DailyStatRecord => {
+  if (!stats.dailyHistory) stats.dailyHistory = {};
+  if (!stats.dailyHistory[today]) {
+    stats.dailyHistory[today] = {
+      date: today,
+      promptTokens: 0,
+      responseTokens: 0,
+      totalTokens: 0,
+      timeSpentSeconds: 0,
+      userMessages: 0,
+      modelMessages: 0,
+      imagesCreated: 0,
+      workspaceCalls: 0,
+      hourlyActivity: new Array(24).fill(0)
+    };
+  }
+  return stats.dailyHistory[today];
 };
 
 export const getUserStatistics = (): UserStatistics => {
@@ -404,7 +438,7 @@ export const getUserStatistics = (): UserStatistics => {
     const stored = localStorage.getItem(STATS_KEY);
     if (!stored) return DEFAULT_STATS;
     const parsed = JSON.parse(stored);
-    return { ...DEFAULT_STATS, ...parsed };
+    return { ...DEFAULT_STATS, ...parsed, dailyHistory: parsed.dailyHistory || {} };
   } catch {
     return DEFAULT_STATS;
   }
@@ -427,19 +461,45 @@ export const incrementTimeSpent = (seconds: number = 1): number => {
   if (!stats.dailyUsageDates.includes(today)) {
     stats.dailyUsageDates.push(today);
   }
+  const dayRecord = getOrCreateTodayRecord(stats, today);
+  dayRecord.timeSpentSeconds += seconds;
+  
+  const currentHour = new Date().getHours();
+  if (dayRecord.hourlyActivity && dayRecord.hourlyActivity[currentHour] !== undefined) {
+    dayRecord.hourlyActivity[currentHour] = Math.min(60, (dayRecord.hourlyActivity[currentHour] || 0) + 1);
+  }
+  
   saveUserStatistics(stats);
   return stats.timeSpentSeconds;
 };
 
 export const trackMessageSent = (role: 'user' | 'model', promptTok: number = 0, respTok: number = 0, modelId?: string) => {
   const stats = getUserStatistics();
+  const today = new Date().toISOString().slice(0, 10);
+  const currentHour = new Date().getHours();
+  const dayRecord = getOrCreateTodayRecord(stats, today);
+
   if (role === 'user') {
     stats.totalMessagesUser = (stats.totalMessagesUser || 0) + 1;
+    dayRecord.userMessages += 1;
   } else {
     stats.totalMessagesModel = (stats.totalMessagesModel || 0) + 1;
+    dayRecord.modelMessages += 1;
   }
-  if (promptTok > 0) stats.totalPromptTokens = (stats.totalPromptTokens || 0) + promptTok;
-  if (respTok > 0) stats.totalResponseTokens = (stats.totalResponseTokens || 0) + respTok;
+
+  if (promptTok > 0) {
+    stats.totalPromptTokens = (stats.totalPromptTokens || 0) + promptTok;
+    dayRecord.promptTokens += promptTok;
+  }
+  if (respTok > 0) {
+    stats.totalResponseTokens = (stats.totalResponseTokens || 0) + respTok;
+    dayRecord.responseTokens += respTok;
+  }
+  dayRecord.totalTokens = dayRecord.promptTokens + dayRecord.responseTokens;
+
+  if (dayRecord.hourlyActivity && dayRecord.hourlyActivity[currentHour] !== undefined) {
+    dayRecord.hourlyActivity[currentHour] = (dayRecord.hourlyActivity[currentHour] || 0) + 1;
+  }
 
   if (modelId) {
     if (!stats.modelUsageBreakdown) stats.modelUsageBreakdown = {};
@@ -452,7 +512,6 @@ export const trackMessageSent = (role: 'user' | 'model', promptTok: number = 0, 
   }
 
   stats.lastActiveDate = new Date().toISOString();
-  const today = new Date().toISOString().slice(0, 10);
   if (!stats.dailyUsageDates) stats.dailyUsageDates = [];
   if (!stats.dailyUsageDates.includes(today)) {
     stats.dailyUsageDates.push(today);
@@ -464,18 +523,26 @@ export const trackImageCreation = () => {
   const stats = getUserStatistics();
   stats.totalImagesCreated = (stats.totalImagesCreated || 0) + 1;
   stats.lastActiveDate = new Date().toISOString();
+  const today = new Date().toISOString().slice(0, 10);
+  const dayRecord = getOrCreateTodayRecord(stats, today);
+  dayRecord.imagesCreated += 1;
   saveUserStatistics(stats);
 };
 
 export const trackVoiceTranscript = () => {
   const stats = getUserStatistics();
   stats.totalVoiceTranscripts = (stats.totalVoiceTranscripts || 0) + 1;
+  stats.lastActiveDate = new Date().toISOString();
   saveUserStatistics(stats);
 };
 
 export const trackWorkspaceApiCall = () => {
   const stats = getUserStatistics();
   stats.totalWorkspaceApiCalls = (stats.totalWorkspaceApiCalls || 0) + 1;
+  stats.lastActiveDate = new Date().toISOString();
+  const today = new Date().toISOString().slice(0, 10);
+  const dayRecord = getOrCreateTodayRecord(stats, today);
+  dayRecord.workspaceCalls += 1;
   saveUserStatistics(stats);
 };
 

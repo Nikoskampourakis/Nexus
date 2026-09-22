@@ -33,6 +33,7 @@ import {
 import { CharacteristicsView } from './CharacteristicsView';
 import { AppStatistics } from './AppStatistics';
 import { IconPackManager } from './IconPackManager';
+import { PermissionsTab } from './PermissionsTab';
 import { ChatSession } from '../types';
 
 interface SettingsProps {
@@ -41,7 +42,7 @@ interface SettingsProps {
   models?: VirtualModel[];
   sessions?: ChatSession[];
   onUpdateModelKnowledge?: (modelId: string, newKnowledge: string) => void;
-  initialTab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack';
+  initialTab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack' | 'permissions';
 }
 
 const VOICES = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede', 'Calliope', 'Leda'];
@@ -176,7 +177,7 @@ export const Settings: React.FC<SettingsProps> = ({
   sessions: propSessions,
   initialTab = 'general'
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage'>(
+  const [activeTab, setActiveTab] = useState<'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'permissions'>(
     initialTab === 'iconpack' ? 'appearance' : (initialTab as any)
   );
   const [appearanceSubTab, setAppearanceSubTab] = useState<'theme' | 'iconpack'>(
@@ -492,7 +493,8 @@ export const Settings: React.FC<SettingsProps> = ({
             { id: 'personalization', label: 'Personalization & Memory' },
             { id: 'appearance', label: 'Appearance & Icon Customization' },
             { id: 'shortcuts', label: 'Shortcuts' },
-            { id: 'usage', label: 'Usage & AI Use' }
+            { id: 'usage', label: 'Usage & AI Use' },
+            { id: 'permissions', label: 'Permissions & Privacy' }
           ].map((tab) => (
             <button 
               key={tab.id}
@@ -525,9 +527,21 @@ export const Settings: React.FC<SettingsProps> = ({
                   Stats
                 </span>
               )}
+              {tab.id === 'permissions' && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  Security
+                </span>
+              )}
             </button>
           ))}
         </div>
+
+        {/* Permissions & Privacy Tab Content */}
+        {activeTab === 'permissions' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <PermissionsTab />
+          </div>
+        )}
 
         {/* Usage & AI Use Tab Content */}
         {activeTab === 'usage' && (

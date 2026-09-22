@@ -1217,6 +1217,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </span>
           </button>
 
+          {/* Permissions & Privacy Button */}
+          <button
+            onClick={() => {
+              if (onOpenSettings) {
+                onOpenSettings('permissions');
+              } else {
+                onChangeView('settings');
+              }
+              if (window.innerWidth < 1024) onToggle();
+            }}
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded-xl text-[var(--text-secondary)] hover:bg-[var(--card-bg)] hover:text-emerald-300 transition-all border border-transparent hover:border-[var(--border-color)]"
+          >
+            <div className="flex items-center space-x-2.5">
+              <AppIcon name="Shield" className="h-4 w-4 text-emerald-400" />
+              <span>Permissions & Privacy</span>
+            </div>
+            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono border border-emerald-500/30">
+              Access
+            </span>
+          </button>
+
           {/* Settings Button */}
           <button
             onClick={() => {

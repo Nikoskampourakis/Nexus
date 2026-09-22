@@ -1,19 +1,15 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
-  getAuth, 
   signInWithPopup, 
-  signInWithCredential,
-  signInAnonymously,
+  signInWithCredential, 
+  signInAnonymously, 
   GoogleAuthProvider, 
   onAuthStateChanged, 
   User, 
   signOut 
 } from 'firebase/auth';
+import { auth, isFirebaseConfigured } from '../src/lib/firebase';
 import firebaseConfig from '../firebase-applet-config.json';
 
-// Initialize Firebase App safely (singleton)
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
 
 // Workspace OAuth Scopes configured for user's apps
 export const WORKSPACE_SCOPES = [
@@ -68,7 +64,7 @@ function notifyListeners(user: User | null, token: string | null) {
 
 export function subscribeAuth(callback: AuthCallback): () => void {
   listeners.add(callback);
-  callback(auth.currentUser, cachedAccessToken);
+  callback(auth ? auth.currentUser : null, cachedAccessToken);
   return () => {
     listeners.delete(callback);
   };
@@ -79,6 +75,11 @@ export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  if (!auth) {
+    if (onAuthFailure) onAuthFailure();
+    notifyListeners(null, null);
+    return () => {};
+  }
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
       if (cachedAccessToken) {
@@ -95,7 +96,7 @@ export const initAuth = (
         console.warn('Anonymous auth auto-init notice:', err);
       }
       if (onAuthFailure) onAuthFailure();
-      notifyListeners(auth.currentUser, null);
+      notifyListeners(auth?.currentUser || null, null);
     }
   });
 };
@@ -139,9 +140,19 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       try {
         accessToken = await requestGSIToken(clientId);
         if (accessToken) {
-          const credential = GoogleAuthProvider.credential(null, accessToken);
-          const userCredential = await signInWithCredential(auth, credential);
-          user = userCredential.user;
+          if (auth) {
+            const credential = GoogleAuthProvider.credential(null, accessToken);
+            const userCredential = await signInWithCredential(auth, credential);
+            user = userCredential.user;
+          } else {
+            // Synthesize user object with basic profile
+            user = {
+              uid: 'gis-user-' + Math.random().toString(36).substring(2, 9),
+              email: 'workspace-user@google.com',
+              displayName: 'Workspace User',
+              photoURL: null,
+            } as unknown as User;
+          }
         }
       } catch (gisError) {
         console.warn('GIS Token Client skipped or unavailable, falling back to signInWithPopup:', gisError);
@@ -150,6 +161,9 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 
     // Strategy 2: Fall back to signInWithPopup
     if (!accessToken || !user) {
+      if (!auth) {
+        throw new Error('Google Sign-In requires configuring VITE_FIREBASE_API_KEY in your settings/secrets or opening in a standard tab with Google Identity Services.');
+      }
       try {
         const result = await signInWithPopup(auth, provider);
         const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -187,13 +201,15 @@ export const getAccessToken = async (): Promise<string | null> => {
 
 // Retrieve current Firebase user
 export const getCurrentUser = (): User | null => {
-  return auth.currentUser;
+  return auth ? auth.currentUser : null;
 };
 
 // Disconnect / Sign out
 export const logout = async () => {
   try {
-    await signOut(auth);
+    if (auth) {
+      await signOut(auth);
+    }
   } finally {
     cachedAccessToken = null;
     notifyListeners(null, null);
