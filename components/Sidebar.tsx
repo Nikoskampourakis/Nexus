@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { VirtualModel, ViewMode, ChatSession, PersonaTone, ChatFolder } from '../types';
 import { AppIcon } from './AppIcon';
+import { GoogleWorkspaceIcon } from './GoogleAppIcons';
 import { exportBatchChatsAsZip } from '../services/exportService';
 import { getPersonalizationConfig } from '../services/personalizationService';
 import { subscribeAuth } from '../services/workspaceAuthService';
@@ -99,7 +100,7 @@ interface SidebarProps {
   onToggleIncognito?: () => void;
   onNewChat?: (expiresInMs?: number | null) => void;
   onOpenStats?: () => void;
-  onOpenSettings?: (tab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack') => void;
+  onOpenSettings?: (tab?: 'general' | 'advanced' | 'personalization' | 'appearance' | 'shortcuts' | 'usage' | 'iconpack' | 'permissions') => void;
   activeExpiration?: number | null;
 }
 
@@ -979,10 +980,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`}
           >
             <span className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-              <span>App Store</span>
+              <GoogleWorkspaceIcon className="w-4 h-4" />
+              <span>Google Apps Store</span>
             </span>
             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${
               isWorkspaceConnected

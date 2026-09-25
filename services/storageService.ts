@@ -1,4 +1,4 @@
-import { ChatSession, VirtualModel, ShortcutItem, ChatFolder, GeneratedImageItem } from '../types';
+import { ChatSession, VirtualModel, ShortcutItem, ChatFolder, GeneratedImageItem, Message } from '../types';
 import { DEFAULT_MODELS, DEFAULT_SHORTCUTS } from '../constants';
 import { normalizeModelName } from './geminiService';
 import { storeImage, getImage, deleteImage, storeSessionMessages, getSessionMessages, deleteSessionMessages, storeMetadata, getMetadata } from './indexedDbService';
@@ -18,6 +18,7 @@ export interface UserSettings {
   pitch?: number;
   voiceVolume?: number;
   autoInterruptThreshold?: number;
+  defaultStartPage?: 'starter' | 'chatbot' | 'chat' | 'dashboard' | 'builder' | 'create';
   // Advanced Server & Generation Settings
   defaultTemperature?: number;
   defaultTopP?: number;
@@ -230,6 +231,20 @@ export const deleteStoredSession = async (sessionId: string): Promise<ChatSessio
   persistSessionsMetadata(sessions);
   await deleteSessionMessages(sessionId);
   return sessions;
+};
+
+export const clearStoredSessions = async (): Promise<void> => {
+  try {
+    const sessions = getStoredSessions();
+    for (const s of sessions) {
+      if (s && s.id) {
+        await deleteSessionMessages(s.id);
+      }
+    }
+    localStorage.removeItem(SESSIONS_KEY);
+  } catch (e) {
+    console.error("Failed to clear stored sessions", e);
+  }
 };
 
 export const getStoredModels = (): VirtualModel[] => {
@@ -536,7 +551,7 @@ export const trackVoiceTranscript = () => {
   saveUserStatistics(stats);
 };
 
-export const trackWorkspaceApiCall = () => {
+export const trackWorkspaceApiCall = (_appName?: string) => {
   const stats = getUserStatistics();
   stats.totalWorkspaceApiCalls = (stats.totalWorkspaceApiCalls || 0) + 1;
   stats.lastActiveDate = new Date().toISOString();

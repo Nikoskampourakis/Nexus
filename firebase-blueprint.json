@@ -1,133 +1,255 @@
 {
-  "collections": [
-    {
-      "collectionId": "users",
+  "entities": {
+    "User": {
+      "title": "User",
       "description": "User profile and personalization settings",
-      "fields": [
-        {
-          "name": "personalization",
-          "type": "map",
+      "type": "object",
+      "properties": {
+        "personalization": {
+          "type": "object",
           "description": "User's persona and custom instruction settings"
         },
-        {
-          "name": "themeId",
+        "themeId": {
           "type": "string",
-          "description": "ID of the currently active theme"
+          "description": "ID of the currently active theme",
+          "maxLength": 64
         },
-        {
-          "name": "updatedAt",
+        "updatedAt": {
           "type": "number",
           "description": "Last time the user profile was updated"
         }
-      ]
+      },
+      "required": ["updatedAt"]
     },
-    {
-      "collectionId": "chatSessions",
-      "description": "Collection of user chat sessions",
-      "fields": [
-        {
-          "name": "userId",
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "User conversational chat sessions",
+      "type": "object",
+      "properties": {
+        "userId": {
           "type": "string",
-          "description": "Owner of the session"
+          "description": "Owner of the chat session",
+          "maxLength": 128
         },
-        {
-          "name": "modelId",
+        "modelId": {
           "type": "string",
-          "description": "The virtual model ID used in this session"
+          "description": "Model alias used in session",
+          "maxLength": 64
         },
-        {
-          "name": "title",
+        "title": {
           "type": "string",
-          "description": "Title of the chat"
+          "description": "Title of the chat",
+          "maxLength": 256
         },
-        {
-          "name": "messages",
+        "messages": {
           "type": "array",
-          "description": "List of message objects"
+          "description": "List of conversation turns"
         },
-        {
-          "name": "updatedAt",
+        "updatedAt": {
           "type": "number",
           "description": "Last interaction timestamp"
         },
-        {
-          "name": "isIncognito",
+        "isIncognito": {
           "type": "boolean",
-          "description": "If true, chat is not persisted long-term"
+          "description": "Incognito chat indicator"
         },
-        {
-          "name": "folderId",
+        "folderId": {
           "type": "string",
-          "description": "Optional folder ID for organization"
+          "description": "Optional containing folder ID",
+          "maxLength": 64
         },
-        {
-          "name": "expiresAt",
+        "expiresAt": {
           "type": "number",
-          "description": "Optional timestamp for temporary chat deletion"
+          "description": "Optional expiry timestamp"
         }
-      ]
+      },
+      "required": ["userId", "title", "updatedAt"]
     },
-    {
-      "collectionId": "chatFolders",
+    "ChatFolder": {
+      "title": "ChatFolder",
       "description": "Folders for organizing chat sessions",
-      "fields": [
-        {
-          "name": "userId",
+      "type": "object",
+      "properties": {
+        "userId": {
           "type": "string",
-          "description": "Owner of the folder"
+          "description": "Owner of the folder",
+          "maxLength": 128
         },
-        {
-          "name": "name",
+        "name": {
           "type": "string",
-          "description": "Display name of the folder"
+          "description": "Folder display name",
+          "maxLength": 128
         },
-        {
-          "name": "color",
+        "color": {
           "type": "string",
-          "description": "Folder color"
+          "description": "Folder hex color",
+          "maxLength": 32
         },
-        {
-          "name": "createdAt",
+        "createdAt": {
           "type": "number",
           "description": "Creation timestamp"
         }
-      ]
+      },
+      "required": ["userId", "name", "createdAt"]
     },
-    {
-      "collectionId": "virtualModels",
-      "description": "Custom agent configurations",
-      "fields": [
-        {
-          "name": "userId",
+    "VirtualModel": {
+      "title": "VirtualModel",
+      "description": "Custom agent persona configurations",
+      "type": "object",
+      "properties": {
+        "userId": {
           "type": "string",
-          "description": "Owner of the model"
+          "description": "Owner of the model",
+          "maxLength": 128
         },
-        {
-          "name": "name",
+        "name": {
           "type": "string",
-          "description": "Model display name"
+          "description": "Model display name",
+          "maxLength": 128
         },
-        {
-          "name": "description",
+        "description": {
           "type": "string",
-          "description": "Model purpose"
+          "description": "Model purpose summary",
+          "maxLength": 512
         },
-        {
-          "name": "baseModel",
+        "baseModel": {
           "type": "string",
-          "description": "Underlying Gemini model alias"
+          "description": "Underlying Gemini model alias",
+          "maxLength": 64
         },
-        {
-          "name": "systemInstruction",
+        "systemInstruction": {
           "type": "string",
-          "description": "Core system prompt"
+          "description": "Core system prompt",
+          "maxLength": 10000
         },
-        {
-          "name": "knowledgeBase",
+        "knowledgeBase": {
           "type": "string",
-          "description": "Additional context text"
+          "description": "Additional context text",
+          "maxLength": 50000
         }
-      ]
+      },
+      "required": ["userId", "name", "baseModel"]
+    },
+    "ImageCreation": {
+      "title": "ImageCreation",
+      "description": "AI creations from styles, imagine scenes, remove objects, extend, and perspective shots",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID",
+          "maxLength": 128
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Generation prompt or edit description",
+          "maxLength": 2048
+        },
+        "url": {
+          "type": "string",
+          "description": "Image payload data URL or storage pointer",
+          "maxLength": 2000000
+        },
+        "thumbnailUrl": {
+          "type": "string",
+          "description": "Optimized thumbnail preview",
+          "maxLength": 200000
+        },
+        "editType": {
+          "type": "string",
+          "description": "Operation type",
+          "enum": ["initial", "remove_object", "move_object", "perspective_shift", "extend_image", "imagine_scene"],
+          "maxLength": 64
+        },
+        "toolUsed": {
+          "type": "string",
+          "description": "Specific creative tool identifier",
+          "maxLength": 64
+        },
+        "styleName": {
+          "type": "string",
+          "description": "Applied visual style",
+          "maxLength": 64
+        },
+        "aspectRatio": {
+          "type": "string",
+          "description": "Aspect ratio of creation",
+          "maxLength": 16
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["userId", "prompt", "url", "createdAt"]
+    },
+    "UserStatistics": {
+      "title": "UserStatistics",
+      "description": "Aggregated user usage statistics and telemetry",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "User ID",
+          "maxLength": 128
+        },
+        "timeSpentSeconds": {
+          "type": "number",
+          "description": "Total seconds spent"
+        },
+        "totalMessagesUser": {
+          "type": "number",
+          "description": "Messages sent by user"
+        },
+        "totalMessagesModel": {
+          "type": "number",
+          "description": "Messages sent by AI"
+        },
+        "totalPromptTokens": {
+          "type": "number",
+          "description": "Input prompt tokens"
+        },
+        "totalResponseTokens": {
+          "type": "number",
+          "description": "Output response tokens"
+        },
+        "totalImagesCreated": {
+          "type": "number",
+          "description": "Count of created images"
+        },
+        "lastActiveDate": {
+          "type": "string",
+          "description": "ISO date string of last activity",
+          "maxLength": 64
+        }
+      },
+      "required": ["userId"]
     }
-  ]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User personal preferences and profile settings"
+    },
+    "/chatSessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "Conversational chat histories"
+    },
+    "/chatFolders/{folderId}": {
+      "schema": "ChatFolder",
+      "description": "Organizational chat folders"
+    },
+    "/virtualModels/{modelId}": {
+      "schema": "VirtualModel",
+      "description": "User-defined AI agents"
+    },
+    "/imageCreations/{creationId}": {
+      "schema": "ImageCreation",
+      "description": "Generated and edited visual creations"
+    },
+    "/userStatistics/{userId}": {
+      "schema": "UserStatistics",
+      "description": "User app activity and statistics"
+    }
+  }
 }

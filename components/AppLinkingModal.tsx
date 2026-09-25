@@ -15,6 +15,7 @@ import {
   ChevronRight,
   X
 } from 'lucide-react';
+import { GoogleDriveIcon, GmailIcon, GoogleDocsIcon, GoogleSheetsIcon, GoogleCalendarIcon, GoogleTasksIcon, GoogleWorkspaceIcon } from './GoogleAppIcons';
 
 export interface LinkableAppItem {
   id: string;
@@ -49,7 +50,7 @@ export const LINKABLE_APPS: LinkableAppItem[] = [
   {
     id: 'drive',
     mention: '@Drive',
-    aliases: ['@googledrive', '@docs', '@sheets', '@gdrive'],
+    aliases: ['@googledrive', '@gdrive'],
     name: 'Google Drive',
     category: 'Cloud',
     description: 'Connect Google Workspace, import Docs, Sheets, Slides, and cloud documents directly into prompts',
@@ -58,7 +59,91 @@ export const LINKABLE_APPS: LinkableAppItem[] = [
     bgGradient: 'from-blue-950/70 to-blue-900/30',
     borderColor: 'border-blue-500/40',
     textColor: 'text-blue-300',
-    icon: HardDrive
+    icon: (props: any) => <GoogleDriveIcon {...props} />
+  },
+  {
+    id: 'gmail',
+    mention: '@Gmail',
+    aliases: ['@mail', '@email', '@inbox'],
+    name: 'Gmail Inbox',
+    category: 'Cloud',
+    description: 'Search messages, check unread emails, compose drafts, and manage correspondence',
+    badge: 'Email',
+    accentColor: '#ef4444',
+    bgGradient: 'from-rose-950/70 to-rose-900/30',
+    borderColor: 'border-rose-500/40',
+    textColor: 'text-rose-300',
+    icon: (props: any) => <GmailIcon {...props} />
+  },
+  {
+    id: 'docs',
+    mention: '@Docs',
+    aliases: ['@document', '@google-docs'],
+    name: 'Google Docs',
+    category: 'Cloud',
+    description: 'Read and analyze text documents, synthesize notes, and append AI summaries',
+    badge: 'Documents',
+    accentColor: '#3b82f6',
+    bgGradient: 'from-sky-950/70 to-sky-900/30',
+    borderColor: 'border-sky-500/40',
+    textColor: 'text-sky-300',
+    icon: (props: any) => <GoogleDocsIcon {...props} />
+  },
+  {
+    id: 'sheets',
+    mention: '@Sheets',
+    aliases: ['@spreadsheet', '@table', '@google-sheets'],
+    name: 'Google Sheets',
+    category: 'Cloud',
+    description: 'Analyze spreadsheet rows, read cells, parse formulas, and append new records',
+    badge: 'Sheets',
+    accentColor: '#10b981',
+    bgGradient: 'from-emerald-950/70 to-emerald-900/30',
+    borderColor: 'border-emerald-500/40',
+    textColor: 'text-emerald-300',
+    icon: (props: any) => <GoogleSheetsIcon {...props} />
+  },
+  {
+    id: 'calendar',
+    mention: '@Calendar',
+    aliases: ['@schedule', '@events', '@meetings'],
+    name: 'Google Calendar',
+    category: 'Cloud',
+    description: 'Inspect upcoming events, schedule meetings, query availability, and set reminders',
+    badge: 'Calendar',
+    accentColor: '#6366f1',
+    bgGradient: 'from-indigo-950/70 to-indigo-900/30',
+    borderColor: 'border-indigo-500/40',
+    textColor: 'text-indigo-300',
+    icon: (props: any) => <GoogleCalendarIcon {...props} />
+  },
+  {
+    id: 'tasks',
+    mention: '@Tasks',
+    aliases: ['@googletasks', '@todo', '@reminders'],
+    name: 'Google Tasks',
+    category: 'Cloud',
+    description: 'Browse tasks, track pending to-dos, create reminders, and mark items complete',
+    badge: 'To-Do',
+    accentColor: '#3b82f6',
+    bgGradient: 'from-blue-950/70 to-blue-900/30',
+    borderColor: 'border-blue-500/40',
+    textColor: 'text-blue-300',
+    icon: (props: any) => <GoogleTasksIcon {...props} />
+  },
+  {
+    id: 'store',
+    mention: '@Store',
+    aliases: ['@apps', '@workspace', '@google-apps', '@connect'],
+    name: 'Google Apps Store',
+    category: 'Cloud',
+    description: 'Open official Google Workspace Connect Hub to toggle Gmail, Drive, Sheets, Docs, Calendar, and Tasks',
+    badge: 'Workspace',
+    accentColor: '#4285f4',
+    bgGradient: 'from-sky-950/70 to-sky-900/30',
+    borderColor: 'border-sky-500/40',
+    textColor: 'text-sky-300',
+    icon: (props: any) => <GoogleWorkspaceIcon {...props} />
   },
   {
     id: 'permissions',
@@ -435,7 +520,7 @@ export const renderTextWithAppLinks = (
   if (!text || !text.includes('@')) return text;
 
   // Regex pattern matching @AppName
-  const regex = /(@(?:Create|Drive|GoogleDrive|Permissions|Privacy|Stats|Statistics|Usage|Research|Web|Think|Study|Quiz|Council|Debate|Camera|Archive|Settings|Studio))\b/gi;
+  const regex = /(@(?:Create|Drive|GoogleDrive|Gmail|Docs|Sheets|Calendar|Permissions|Privacy|Stats|Statistics|Usage|Research|Web|Think|Study|Quiz|Council|Debate|Camera|Archive|Settings|Studio))\b/gi;
 
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;

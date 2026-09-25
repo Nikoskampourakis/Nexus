@@ -232,7 +232,7 @@ export const PermissionsTab: React.FC = () => {
         if (navigator.storage && navigator.storage.persist) {
           const granted = await navigator.storage.persist();
           setPermissions(prev => prev.map(p => p.id === 'storage' ? { ...p, status: granted ? 'granted' : 'prompt' } : p));
-          addAuditEntry('storage', 'Persistent Storage', granted ? 'granted' : 'prompt', granted ? 'Persistent storage allocated' : 'Storage persistence not granted');
+          addAuditEntry('storage', 'Persistent Storage', granted ? 'granted' : 'requested', granted ? 'Persistent storage allocated' : 'Storage persistence not granted');
           setStatusMessage(granted ? 'Persistent storage locked!' : 'Standard storage active');
         }
       } else if (perm.id === 'workspace') {

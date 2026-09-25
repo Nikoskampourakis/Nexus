@@ -69,6 +69,7 @@ import { ArchivePackage, unpackArchive, packZipArchive, packTarArchive } from '.
 import { downloadWordFromMarkdown, downloadPptxFromMarkdown } from '../services/docGenService';
 import { CameraModal } from './CameraModal';
 import { GoogleDriveImportModal } from './GoogleDriveImportModal';
+import { GoogleDriveIcon, GoogleWorkspaceIcon } from './GoogleAppIcons';
 import { AppIcon } from './AppIcon';
 import { trackAppCommandExecuted } from '../services/storageService';
 import { calculateSessionTokens, formatTokenCount, TokenStats } from '../services/tokenService';
@@ -616,7 +617,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   // Detected @ mentions in input to display as linked badges above the textarea
   const detectedLinkedMentions = Array.from(
     new Set(
-      (input.match(/(@(?:Create|Drive|GoogleDrive|Permissions|Privacy|Stats|Statistics|Usage|Research|Web|Think|Study|Quiz|Council|Debate|Camera|Archive|Settings|Studio))\b/gi) || [])
+      (input.match(/(@(?:Create|Drive|GoogleDrive|Gmail|Docs|Sheets|Calendar|Permissions|Privacy|Stats|Statistics|Usage|Research|Web|Think|Study|Quiz|Council|Debate|Camera|Archive|Settings|Studio))\b/gi) || [])
         .map(m => {
           const clean = m.toLowerCase();
           const app = LINKABLE_APPS.find(a => 
@@ -1198,10 +1199,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           className="w-full text-left px-2.5 py-2 text-xs text-neutral-200 hover:bg-white/10 rounded-xl flex items-center justify-between transition-colors group mb-1"
         >
           <div className="flex items-center space-x-2.5">
-            <div className="w-7 h-7 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 group-hover:bg-blue-500/25">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 001-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
-              </svg>
+            <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center p-1 group-hover:bg-white/10">
+              <GoogleDriveIcon className="w-4 h-4" />
             </div>
             <div>
               <div className="font-semibold text-neutral-100 flex items-center gap-1.5">
@@ -1656,11 +1655,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <button
                 onClick={onOpenAppStore}
                 className="px-2.5 py-1 rounded-lg border border-blue-500/40 bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 hover:text-white transition-all text-xs flex items-center space-x-1.5 shadow-sm"
-                title="Open App Store (Gmail, Drive, Sheets, Docs, Calendar, Tasks)"
+                title="Open Google Apps Store (Gmail, Drive, Sheets, Docs, Calendar, Tasks)"
               >
-                <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
+                <GoogleWorkspaceIcon className="w-3.5 h-3.5" />
                 <span className="hidden xs:inline font-semibold">Store</span>
               </button>
             )}
@@ -2850,8 +2847,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       {/* Camera Capture Modal */}
       {showCamera && (
         <CameraModal
-          onCapture={(base64, mimeType) => {
-            setPendingAttachment({ mimeType, data: base64 });
+          onCapture={(base64) => {
+            const cleanData = base64.includes(',') ? base64.split(',')[1] : base64;
+            setPendingAttachment({ mimeType: 'image/jpeg', data: cleanData });
             setShowCamera(false);
           }}
           onClose={() => setShowCamera(false)}

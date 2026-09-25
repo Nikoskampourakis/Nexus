@@ -185,10 +185,38 @@ export interface IconPack {
   description: string;
   badge?: string;
   author?: string;
-  style: 'lucide' | '3d-glass' | 'cyberpunk-neon' | 'pixel-retro' | 'gold-luxe' | 'doodle-hand' | 'custom';
+  recommendedThemeId?: string;
+  style: 'lucide' | '3d-glass' | 'cyberpunk-neon' | 'pixel-retro' | 'gold-luxe' | 'doodle-hand' | 'custom' | 'emerald-matrix' | 'synthwave-80s' | 'pastel-duotone' | 'monochrome-slate';
   overrides: Record<string, string>;
   cssFilter?: string;
   previewIcons: Array<{ iconId: string; url?: string; emoji?: string }>;
+}
+
+export type StarterWidgetId = 
+  | 'daily_theme'
+  | 'shortcuts'
+  | 'prompts'
+  | 'daily_briefing'
+  | 'scratchpad'
+  | 'ai_roster'
+  | 'recent_chats'
+  | 'metrics'
+  | 'inspiration';
+
+export interface StarterWidgetItem {
+  id: StarterWidgetId;
+  title: string;
+  description: string;
+  enabled: boolean;
+  order: number;
+  colSpan?: 1 | 2;
+}
+
+export interface StarterDashboardConfig {
+  gridColumns: 1 | 2 | 3 | 4;
+  widgets: StarterWidgetItem[];
+  showHeroBanner: boolean;
+  autoDailyTheme: boolean;
 }
 
 export interface KeyConfig {
@@ -252,6 +280,6 @@ export interface GeneratedImageItem {
   aspectRatio: string;
   createdAt: number;
   originalUrl?: string; // For before/after comparisons
-  editType?: 'initial' | 'edit_message' | 'remove_object' | 'move_object' | 'perspective_shift';
+  editType?: 'initial' | 'edit_message' | 'remove_object' | 'move_object' | 'perspective_shift' | 'area_select_edit' | 'extend_image' | 'imagine_scene';
   editNote?: string;
 }

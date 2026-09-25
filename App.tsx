@@ -7,8 +7,7 @@ import { Settings } from './components/Settings';
 import { CreateTab } from './components/CreateTab';
 import { ConnectHub } from './components/ConnectHub';
 import { DownloadChatModal } from './components/DownloadChatModal';
-import { VirtualModel, Message, ViewMode, ChatSession, ShortcutItem, FormattingActionType, CouncilDebateData } from './types';
-import { ArchivePackage } from './services/archiveService';
+import { VirtualModel, Message, ViewMode, ChatSession, ShortcutItem, FormattingActionType, CouncilDebateData, AgentActionItem } from './types';
 import { streamGeminiResponse, synthesizeAndLearnKnowledge, generateSingleImage, formatTextWithGemini, streamCouncilDebateResponse, streamCorrectionAudit } from './services/geminiService';
 import { 
   getStoredSessions, 
@@ -106,7 +105,7 @@ const App: React.FC = () => {
         setDownloadingSession({
           id: 'current',
           title: currentSessionTitle || 'Active Conversation',
-          timestamp: Date.now(),
+          updatedAt: Date.now(),
           messages: messages,
           modelId: activeModelId,
         });
@@ -679,10 +678,8 @@ const App: React.FC = () => {
       // Save to library gallery as well
       saveStoredCreation({
         id: 'img_' + Date.now(),
-        type: 'image',
-        title: promptText.slice(0, 40),
+        url: imageUrl,
         prompt: promptText,
-        result: imageUrl,
         style: stylePrompt,
         aspectRatio: aspectRatio,
         createdAt: Date.now()
@@ -1170,8 +1167,6 @@ const App: React.FC = () => {
           setLearningNotification(`Successfully exported ${count} chat sessions to ZIP archive with PDFs and Markdown!`);
           setTimeout(() => setLearningNotification(null), 5000);
         }}
-        onOpenDocumentStudio={() => handleOpenDocumentStudio()}
-        onOpenArchiveStudio={() => handleOpenArchiveStudio()}
         onOpenSettings={handleOpenSettings}
         activeExpiration={nextChatExpiration ? nextChatExpiration - Date.now() : null}
       />
@@ -1328,6 +1323,7 @@ const App: React.FC = () => {
         {downloadingSession && (
           <DownloadChatModal
             session={downloadingSession}
+            modelName={models.find(m => m.id === downloadingSession.modelId)?.name || activeModel?.name || 'Nexus Model'}
             onClose={() => setDownloadingSession(null)}
           />
         )}

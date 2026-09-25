@@ -91,6 +91,22 @@ export const deleteSessionMessages = async (sessionId: string) => {
   });
 };
 
+export const clearAllSessionMessages = async (): Promise<boolean> => {
+  try {
+    const db = await initDB();
+    return new Promise((resolve) => {
+      const transaction = db.transaction(MESSAGE_STORE, 'readwrite');
+      const store = transaction.objectStore(MESSAGE_STORE);
+      store.clear();
+      transaction.oncomplete = () => resolve(true);
+      transaction.onerror = () => resolve(false);
+    });
+  } catch (e) {
+    console.warn("Failed to clear session messages in IndexedDB", e);
+    return false;
+  }
+};
+
 export const storeMetadata = async (key: string, data: any) => {
   const db = await initDB();
   return new Promise((resolve, reject) => {

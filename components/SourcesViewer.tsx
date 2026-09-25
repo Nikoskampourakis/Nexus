@@ -173,7 +173,7 @@ export const SourcesViewer: React.FC<SourcesViewerProps> = ({
                     alt=""
                     className="w-5 h-5 rounded-md bg-neutral-800 p-0.5 border border-neutral-700 flex-shrink-0 mt-0.5"
                     onError={(e) => {
-                      (e.target as HTMLElement).src = 'https://www.google.com/favicon.ico';
+                      (e.currentTarget as HTMLImageElement).src = 'https://www.google.com/favicon.ico';
                     }}
                   />
 

@@ -22,6 +22,12 @@ export const APP_ICON_CATALOG: AppIconCatalogItem[] = [
   { id: 'Send', label: 'Send Message Button', category: 'Action', description: 'Primary action icon inside the chat message composer.', aliases: ['Submit', 'Post'] },
   { id: 'Plus', label: 'Upload & Attach Menu (+)', category: 'Action', description: 'Trigger button for attachments, camera, drive, and media options.', aliases: ['Add', 'Attach'] },
   { id: 'HardDrive', label: 'Google Drive Integration', category: 'Media & Inputs', description: 'Icon for importing documents and spreadsheets from Google Drive.', aliases: ['Drive', 'GoogleDrive'] },
+  { id: 'Gmail', label: 'Gmail Inbox & Mail', category: 'Media & Inputs', description: 'Official transparent icon for Gmail inbox search and email actions.', aliases: ['Mail', 'Email', 'gmail'] },
+  { id: 'GoogleDocs', label: 'Google Docs Document', category: 'Media & Inputs', description: 'Official transparent icon for Google Docs text documents.', aliases: ['Docs', 'Document', 'docs'] },
+  { id: 'GoogleSheets', label: 'Google Sheets Spreadsheet', category: 'Media & Inputs', description: 'Official transparent icon for Google Sheets spreadsheets and formulas.', aliases: ['Sheets', 'Spreadsheet', 'sheets'] },
+  { id: 'GoogleCalendar', label: 'Google Calendar & Schedule', category: 'Media & Inputs', description: 'Official transparent icon for Google Calendar meetings and schedule.', aliases: ['Calendar', 'Schedule', 'calendar'] },
+  { id: 'GoogleTasks', label: 'Google Tasks & To-Do', category: 'Media & Inputs', description: 'Official transparent icon for Google Tasks reminders and check items.', aliases: ['Tasks', 'Todo', 'tasks'] },
+  { id: 'GoogleSlides', label: 'Google Slides Presentation', category: 'Media & Inputs', description: 'Official transparent icon for Google Slides presentations.', aliases: ['Slides', 'Presentation', 'slides'] },
   { id: 'Sparkles', label: 'AI Generation & Studio', category: 'AI Tools', description: 'Icon for AI magic, image generation, and quick prompt enhancement.', aliases: ['Magic', 'AiGen'] },
   { id: 'Settings', label: 'System Configuration', category: 'Navigation', description: 'Icon for opening system settings, preferences, and theme builder.', aliases: ['Gear', 'Config'] },
   { id: 'Search', label: 'Search Bar & Navigation', category: 'Navigation', description: 'Icon for searching chat sessions, archives, and web results.', aliases: ['Find', 'Glass'] },
@@ -52,10 +58,11 @@ export const PRESET_ICON_PACKS: IconPack[] = [
   {
     id: 'lucide-default',
     name: 'Modern Minimalist',
-    description: 'Crisp vector icons with balanced proportions and theme-adaptive coloring.',
+    description: 'Crisp vector icons with balanced geometric proportions and adaptive theme coloring.',
     badge: 'Default',
     author: 'Lucide Core',
     style: 'lucide',
+    recommendedThemeId: 'default',
     overrides: {},
     previewIcons: [
       { iconId: 'Bot', emoji: '🤖' },
@@ -67,77 +74,152 @@ export const PRESET_ICON_PACKS: IconPack[] = [
   },
   {
     id: '3d-glass',
-    name: '3D Glassmorphism',
-    description: 'Glossy volumetric icons with soft ambient depth, drop shadows, and subtle gradient sheen.',
-    badge: 'Popular',
-    author: '3D Studio',
+    name: '3D Glassmorphism & Clay',
+    description: 'Glossy volumetric icons with soft ambient depth, bevel highlights, and 3D shadow.',
+    badge: 'Volumetric',
+    author: 'Nexus 3D Labs',
     style: '3d-glass',
-    cssFilter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4)) contrast(110%) brightness(115%)',
-    overrides: {
-      Bot: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
-      Sparkles: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=100&auto=format&fit=crop&q=80',
-      Send: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=100&auto=format&fit=crop&q=80',
-      HardDrive: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80'
-    },
+    recommendedThemeId: 'oled_dark',
+    cssFilter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45)) contrast(115%) brightness(110%)',
+    overrides: {},
     previewIcons: [
-      { iconId: 'Bot', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80' },
-      { iconId: 'Sparkles', url: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=100&auto=format&fit=crop&q=80' },
-      { iconId: 'Send', url: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=100&auto=format&fit=crop&q=80' },
-      { iconId: 'HardDrive', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80' }
+      { iconId: 'Bot', emoji: '🔮' },
+      { iconId: 'Sparkles', emoji: '💎' },
+      { iconId: 'Send', emoji: '🚀' },
+      { iconId: 'HardDrive', emoji: '📦' },
+      { iconId: 'Settings', emoji: '⚙️' }
     ]
   },
   {
     id: 'cyberpunk-neon',
     name: 'Cyberpunk Neon Glow',
-    description: 'Electric cyan and magenta glowing icons with high-frequency aura filters.',
+    description: 'Electric cyan and magenta glowing neon outlines with dual-frequency aura radiance.',
     badge: 'Sci-Fi',
-    author: 'Neon City',
+    author: 'Night City',
     style: 'cyberpunk-neon',
-    cssFilter: 'drop-shadow(0 0 6px #06b6d4) drop-shadow(0 0 12px #ec4899) saturate(180%)',
+    recommendedThemeId: 'cyberpunk',
+    cssFilter: 'drop-shadow(0 0 5px #00f0ff) drop-shadow(0 0 10px #ff007f) saturate(200%)',
     overrides: {},
     previewIcons: [
       { iconId: 'Bot', emoji: '⚡' },
       { iconId: 'Sparkles', emoji: '🌌' },
       { iconId: 'Send', emoji: '🛸' },
-      { iconId: 'HardDrive', emoji: '💾' }
+      { iconId: 'HardDrive', emoji: '💾' },
+      { iconId: 'Settings', emoji: '🧬' }
     ]
   },
   {
     id: 'pixel-retro',
     name: '8-Bit Pixel Arcade',
-    description: 'Nostalgic arcade pixel-art icons bringing 80s retro gaming aesthetics.',
+    description: 'Nostalgic arcade pixel-art icons bringing authentic 80s retro gaming aesthetics.',
     badge: 'Retro',
-    author: 'BitCraft',
+    author: 'BitCraft 80s',
     style: 'pixel-retro',
-    cssFilter: 'saturate(200%) contrast(150%) brightness(120%)',
+    recommendedThemeId: 'default',
+    cssFilter: 'contrast(160%) saturate(180%) brightness(115%)',
     overrides: {},
     previewIcons: [
       { iconId: 'Bot', emoji: '👾' },
       { iconId: 'Sparkles', emoji: '⭐' },
       { iconId: 'Send', emoji: '🎯' },
-      { iconId: 'HardDrive', emoji: '📼' }
+      { iconId: 'HardDrive', emoji: '📼' },
+      { iconId: 'Settings', emoji: '🕹️' }
     ]
   },
   {
     id: 'gold-luxe',
     name: 'Gold Luxe Obsidian',
-    description: 'Brushed metallic gold icons crafted for premium dark luxury interfaces.',
+    description: 'Brushed metallic 24K gold icons crafted for premium dark luxury interfaces.',
     badge: 'Luxury',
     author: 'Aureus Design',
     style: 'gold-luxe',
-    cssFilter: 'sepia(100%) hue-rotate(10deg) saturate(300%) contrast(120%) brightness(110%)',
+    recommendedThemeId: 'solar_amber',
+    cssFilter: 'sepia(100%) hue-rotate(5deg) saturate(320%) contrast(125%) brightness(115%)',
     overrides: {},
     previewIcons: [
       { iconId: 'Bot', emoji: '👑' },
       { iconId: 'Sparkles', emoji: '✨' },
       { iconId: 'Send', emoji: '🏆' },
-      { iconId: 'HardDrive', emoji: '💎' }
+      { iconId: 'HardDrive', emoji: '💎' },
+      { iconId: 'Settings', emoji: '🪙' }
+    ]
+  },
+  {
+    id: 'emerald-matrix',
+    name: 'Emerald Matrix Phosphor',
+    description: 'High-tech terminal phosphor green CRT glow for cyberpunk and developer aesthetics.',
+    badge: 'Hacker',
+    author: 'Cyberdeck 99',
+    style: 'emerald-matrix',
+    recommendedThemeId: 'emerald_matrix',
+    cssFilter: 'drop-shadow(0 0 6px #00ff66) contrast(140%) saturate(250%)',
+    overrides: {},
+    previewIcons: [
+      { iconId: 'Bot', emoji: '🟢' },
+      { iconId: 'Sparkles', emoji: '❇️' },
+      { iconId: 'Send', emoji: '📟' },
+      { iconId: 'HardDrive', emoji: '💾' },
+      { iconId: 'Settings', emoji: '⚙️' }
+    ]
+  },
+  {
+    id: 'synthwave-80s',
+    name: 'Midnight Synthwave',
+    description: 'Ultraviolet & outrun neon magenta glow with nostalgic sunset gradient sheen.',
+    badge: 'Outrun',
+    author: 'Kavinsky Wave',
+    style: 'synthwave-80s',
+    recommendedThemeId: 'synthwave',
+    cssFilter: 'drop-shadow(0 0 6px #d946ef) drop-shadow(0 0 12px #8b5cf6) saturate(190%)',
+    overrides: {},
+    previewIcons: [
+      { iconId: 'Bot', emoji: '🌆' },
+      { iconId: 'Sparkles', emoji: '💜' },
+      { iconId: 'Send', emoji: '🚀' },
+      { iconId: 'HardDrive', emoji: '📼' },
+      { iconId: 'Settings', emoji: '🔮' }
+    ]
+  },
+  {
+    id: 'pastel-duotone',
+    name: 'Pastel Duotone',
+    description: 'Friendly rounded duotone icons with soft complementary lavender and mint accents.',
+    badge: 'Soft',
+    author: 'Nordic Studio',
+    style: 'pastel-duotone',
+    recommendedThemeId: 'white',
+    cssFilter: 'contrast(105%) brightness(108%) saturate(120%)',
+    overrides: {},
+    previewIcons: [
+      { iconId: 'Bot', emoji: '🌸' },
+      { iconId: 'Sparkles', emoji: '✨' },
+      { iconId: 'Send', emoji: '🌿' },
+      { iconId: 'HardDrive', emoji: '📁' },
+      { iconId: 'Settings', emoji: '🫧' }
+    ]
+  },
+  {
+    id: 'monochrome-slate',
+    name: 'Bauhaus Monochrome',
+    description: 'Stark high-contrast minimalist architectural icons with clean black & white lines.',
+    badge: 'Brutalist',
+    author: 'Bauhaus Core',
+    style: 'monochrome-slate',
+    recommendedThemeId: 'monochrome_slate',
+    cssFilter: 'grayscale(100%) contrast(150%)',
+    overrides: {},
+    previewIcons: [
+      { iconId: 'Bot', emoji: '◼️' },
+      { iconId: 'Sparkles', emoji: '◻️' },
+      { iconId: 'Send', emoji: '▲' },
+      { iconId: 'HardDrive', emoji: '📁' },
+      { iconId: 'Settings', emoji: '⚙️' }
     ]
   },
   {
     id: 'custom-user',
     name: 'Custom Image Pack',
-    description: 'Fully personalized pack where every icon in the app is replaced with custom uploaded images or URLs.',
+    description: 'Fully personalized pack where every icon in the app can be replaced with custom uploads or image URLs.',
     badge: 'Custom',
     author: 'You',
     style: 'custom',
@@ -145,7 +227,9 @@ export const PRESET_ICON_PACKS: IconPack[] = [
     previewIcons: [
       { iconId: 'Bot', emoji: '🎨' },
       { iconId: 'Sparkles', emoji: '📸' },
-      { iconId: 'Send', emoji: '🖼️' }
+      { iconId: 'Send', emoji: '🖼️' },
+      { iconId: 'HardDrive', emoji: '💾' },
+      { iconId: 'Settings', emoji: '🛠️' }
     ]
   }
 ];

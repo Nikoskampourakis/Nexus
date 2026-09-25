@@ -196,9 +196,9 @@ export const generateWordDocument = async (payload: WordDocPayload): Promise<Blo
         new Table({
           rows,
           width: { size: 100, type: WidthType.PERCENTAGE },
-          spacing: { after: 240 },
         })
       );
+      docChildren.push(new Paragraph({ text: '', spacing: { after: 200 } }));
     }
   });
 
@@ -237,7 +237,7 @@ export const downloadWordDoc = async (payload: WordDocPayload): Promise<void> =>
 /**
  * Creates and downloads a PowerPoint presentation (.pptx)
  */
-export const downloadPowerPointPresentation = async (payload: PptxPayload): Promise<void> => {
+export const downloadPowerPointPresentation = async (payload: PptxPayload, customFileName?: string): Promise<void> => {
   const pres = new pptxgen();
   pres.layout = 'LAYOUT_16x9';
   pres.title = payload.title;
@@ -434,11 +434,18 @@ export const downloadPowerPointPresentation = async (payload: PptxPayload): Prom
     }
   });
 
-  const safeFilename = (payload.title || 'Presentation')
-    .replace(/[^a-zA-Z0-9_-]/g, '_')
-    .substring(0, 50);
+  const safeFilename = customFileName 
+    ? (customFileName.endsWith('.pptx') ? customFileName : `${customFileName}.pptx`)
+    : `${(payload.title || 'Presentation').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50)}.pptx`;
 
-  await pres.writeFile({ fileName: `${safeFilename}.pptx` });
+  await pres.writeFile({ fileName: safeFilename });
+};
+
+/**
+  * Alias for backwards compatibility
+  */
+export const convertMarkdownToWordPayload = (title: string, markdownText: string): WordDocPayload => {
+  return convertTextToWordDocPayload(title, markdownText);
 };
 
 /**

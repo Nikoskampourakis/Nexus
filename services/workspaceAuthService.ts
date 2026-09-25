@@ -38,8 +38,16 @@ provider.setCustomParameters({
 // Flag to track ongoing sign in flow
 let isSigningIn = false;
 
-// In-memory token storage
+const STORAGE_TOKEN_KEY = 'workspace_oauth_access_token';
+const STORAGE_USER_KEY = 'workspace_oauth_user_profile';
+
+// In-memory & storage backed token
 let cachedAccessToken: string | null = null;
+try {
+  cachedAccessToken = sessionStorage.getItem(STORAGE_TOKEN_KEY) || localStorage.getItem(STORAGE_TOKEN_KEY);
+} catch {
+  // Ignore storage access errors
+}
 
 export interface AuthState {
   user: User | null;
@@ -51,6 +59,14 @@ export interface AuthState {
 // Global event listeners for token state changes
 type AuthCallback = (user: User | null, token: string | null) => void;
 const listeners: Set<AuthCallback> = new Set();
+
+function getStoredUser(): User | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_USER_KEY) || localStorage.getItem(STORAGE_USER_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return auth?.currentUser || null;
+}
 
 function notifyListeners(user: User | null, token: string | null) {
   listeners.forEach((cb) => {
@@ -64,7 +80,8 @@ function notifyListeners(user: User | null, token: string | null) {
 
 export function subscribeAuth(callback: AuthCallback): () => void {
   listeners.add(callback);
-  callback(auth ? auth.currentUser : null, cachedAccessToken);
+  const user = getStoredUser();
+  callback(user, cachedAccessToken);
   return () => {
     listeners.delete(callback);
   };
@@ -75,28 +92,37 @@ export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  const storedUser = getStoredUser();
+  if (storedUser && cachedAccessToken) {
+    if (onAuthSuccess) onAuthSuccess(storedUser, cachedAccessToken);
+    notifyListeners(storedUser, cachedAccessToken);
+  }
+
   if (!auth) {
-    if (onAuthFailure) onAuthFailure();
-    notifyListeners(null, null);
+    if (!cachedAccessToken && onAuthFailure) onAuthFailure();
     return () => {};
   }
+
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
       if (cachedAccessToken) {
         if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
         notifyListeners(user, cachedAccessToken);
       } else if (!isSigningIn) {
-        notifyListeners(user, null);
+        const stored = getStoredUser();
+        notifyListeners(stored || user, cachedAccessToken);
       }
     } else {
-      // Auto sign-in anonymously if no user is signed in to enable Firestore security rules
-      try {
-        await signInAnonymously(auth);
-      } catch (err) {
-        console.warn('Anonymous auth auto-init notice:', err);
+      if (!cachedAccessToken) {
+        // Auto sign-in anonymously if no user is signed in to enable Firestore security rules
+        try {
+          await signInAnonymously(auth);
+        } catch (err) {
+          console.warn('Anonymous auth auto-init notice:', err);
+        }
+        if (onAuthFailure) onAuthFailure();
+        notifyListeners(auth?.currentUser || null, null);
       }
-      if (onAuthFailure) onAuthFailure();
-      notifyListeners(auth?.currentUser || null, null);
     }
   });
 };
@@ -140,12 +166,25 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       try {
         accessToken = await requestGSIToken(clientId);
         if (accessToken) {
-          if (auth) {
-            const credential = GoogleAuthProvider.credential(null, accessToken);
-            const userCredential = await signInWithCredential(auth, credential);
-            user = userCredential.user;
-          } else {
-            // Synthesize user object with basic profile
+          // Fetch Google user profile directly using the valid accessToken
+          try {
+            const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (userInfoRes.ok) {
+              const info = await userInfoRes.json();
+              user = {
+                uid: info.sub || 'gis-user-' + Math.random().toString(36).substring(2, 9),
+                email: info.email || 'workspace-user@google.com',
+                displayName: info.name || 'Workspace User',
+                photoURL: info.picture || null,
+              } as unknown as User;
+            }
+          } catch (profileErr) {
+            console.warn('Failed to fetch user profile:', profileErr);
+          }
+
+          if (!user) {
             user = {
               uid: 'gis-user-' + Math.random().toString(36).substring(2, 9),
               email: 'workspace-user@google.com',
@@ -184,6 +223,13 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
 
     cachedAccessToken = accessToken;
+    try {
+      sessionStorage.setItem(STORAGE_TOKEN_KEY, accessToken);
+      localStorage.setItem(STORAGE_TOKEN_KEY, accessToken);
+      sessionStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
+      localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
+    } catch {}
+
     notifyListeners(user, cachedAccessToken);
     return { user, accessToken };
   } catch (error: any) {
@@ -196,12 +242,17 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 
 // Retrieve current cached token
 export const getAccessToken = async (): Promise<string | null> => {
+  if (!cachedAccessToken) {
+    try {
+      cachedAccessToken = sessionStorage.getItem(STORAGE_TOKEN_KEY) || localStorage.getItem(STORAGE_TOKEN_KEY);
+    } catch {}
+  }
   return cachedAccessToken;
 };
 
 // Retrieve current Firebase user
 export const getCurrentUser = (): User | null => {
-  return auth ? auth.currentUser : null;
+  return getStoredUser();
 };
 
 // Disconnect / Sign out
@@ -212,6 +263,12 @@ export const logout = async () => {
     }
   } finally {
     cachedAccessToken = null;
+    try {
+      sessionStorage.removeItem(STORAGE_TOKEN_KEY);
+      localStorage.removeItem(STORAGE_TOKEN_KEY);
+      sessionStorage.removeItem(STORAGE_USER_KEY);
+      localStorage.removeItem(STORAGE_USER_KEY);
+    } catch {}
     notifyListeners(null, null);
   }
 };

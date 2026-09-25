@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getUserSettings } from '../services/storageService';
+import { generateSpeechWithGemini, decodePCM16AudioData } from '../services/geminiService';
 
 export interface KeywordItem {
   word: string;
@@ -30,11 +31,13 @@ interface AudiblePlayerProps {
   onStateUpdate?: (state: AudibleState) => void;
 }
 
-const VOICES_LIST = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede', 'Calliope', 'Leda'];
+const VOICES_LIST = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede', 'Calliope', 'Leda'] as const;
 
 // Strip markdown formatting for natural TTS reading
 export const cleanMarkdownForSpeech = (md: string): string => {
   return md
+    .replace(/\[CORRECTION_AUDIT\].*?\|\|CORRECTION_AUDIT\|\|/gs, '')
+    .replace(/\|\|.*?\|\|/gs, '')
     .replace(/```[\s\S]*?```/g, ' Code snippet omitted. ')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/!\[.*?\]\(.*?\)/g, '')
@@ -46,7 +49,6 @@ export const cleanMarkdownForSpeech = (md: string): string => {
     .replace(/>\s+/g, '')
     .replace(/[-*+]\s+/g, '')
     .replace(/\d+\.\s+/g, '')
-    .replace(/\|\|.*?\|\|/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 };
@@ -84,26 +86,33 @@ export const AudiblePlayer: React.FC<AudiblePlayerProps> = ({
   const cleanText = useRef(cleanMarkdownForSpeech(rawText)).current;
   const rawKeywords = useRef(extractKeywords(cleanText)).current;
 
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(true);
   const [speed, setSpeed] = useState<number>(userSettings.speechRate || 1);
   const [selectedVoice, setSelectedVoice] = useState<string>(userSettings.defaultVoice || 'Kore');
   const [showVoicePicker, setShowVoicePicker] = useState(false);
-  const [currentCharIndex, setCurrentCharIndex] = useState<number>(0);
-  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [currentPlayTime, setCurrentPlayTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const [isFallbackMode, setIsFallbackMode] = useState<boolean>(false);
 
-  const startOffsetRef = useRef<number>(0);
-  const currentCharIndexRef = useRef<number>(0);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const timerRef = useRef<any>(null);
-  const startTimeRef = useRef<number>(Date.now());
+  // Audio Context & Buffer Refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const startContextTimeRef = useRef<number>(0);
+  const pausedOffsetRef = useRef<number>(0);
+  const audioCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
   const progressTrackRef = useRef<HTMLDivElement>(null);
+  const tickerRef = useRef<any>(null);
 
-  // Estimate total speech duration based on word count & character length
-  const totalSeconds = Math.max(3, Math.round(cleanText.length / (14 * speed)));
-  const currentSeconds = Math.min(totalSeconds, Math.round(currentCharIndex / (14 * speed)));
-  const progressPercent = cleanText.length > 0 
-    ? Math.min(100, Math.max(0, (currentCharIndex / cleanText.length) * 100)) 
+  // Browser SpeechSynthesis fallback ref
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // Dynamic progress & current character index
+  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentPlayTime / duration) * 100)) : 0;
+  const currentCharIndex = cleanText.length > 0 
+    ? Math.min(cleanText.length, Math.floor((progressPercent / 100) * cleanText.length))
     : 0;
 
   const keywords: KeywordItem[] = rawKeywords.map(k => {
@@ -116,171 +125,268 @@ export const AudiblePlayer: React.FC<AudiblePlayerProps> = ({
     };
   });
 
+  // State update callback
   useEffect(() => {
     if (onStateUpdate) {
       onStateUpdate({
         messageId,
-        isPlaying,
+        isPlaying: isPlaying && !isPaused,
         isPaused,
         progress: progressPercent,
-        currentTime: currentSeconds,
-        totalTime: totalSeconds,
+        currentTime: Math.round(currentPlayTime),
+        totalTime: Math.round(duration),
         currentCharIndex,
         speed,
         cleanText,
         keywords
       });
     }
-  }, [messageId, isPlaying, isPaused, progressPercent, currentSeconds, totalSeconds, currentCharIndex, speed, cleanText]);
+  }, [messageId, isPlaying, isPaused, progressPercent, currentPlayTime, duration, currentCharIndex, speed, cleanText]);
 
-  // Match system synthesis voice to requested voice name or gender
-  const getMatchingVoice = useCallback((voiceName: string): SpeechSynthesisVoice | null => {
-    if (!('speechSynthesis' in window)) return null;
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length === 0) return null;
-
-    // Direct name match or substring
-    const exact = voices.find(v => v.name.toLowerCase().includes(voiceName.toLowerCase()));
-    if (exact) return exact;
-
-    // Prefer high quality English voices
-    const enVoices = voices.filter(v => v.lang.startsWith('en'));
-    if (['Aoede', 'Calliope', 'Kore', 'Leda'].includes(voiceName)) {
-      // Female preference
-      const female = enVoices.find(v => /female|zira|samantha|karen|victoria|moira|google uk english female/i.test(v.name));
-      if (female) return female;
-    } else {
-      // Male preference
-      const male = enVoices.find(v => /male|david|alex|george|daniel|google uk english male/i.test(v.name));
-      if (male) return male;
+  // Clean stop of active audio source
+  const stopAudio = useCallback(() => {
+    if (tickerRef.current) {
+      clearInterval(tickerRef.current);
+      tickerRef.current = null;
     }
-
-    return enVoices[0] || voices[0] || null;
+    if (sourceNodeRef.current) {
+      try {
+        sourceNodeRef.current.onended = null;
+        sourceNodeRef.current.stop();
+        sourceNodeRef.current.disconnect();
+      } catch (e) {}
+      sourceNodeRef.current = null;
+    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
   }, []);
 
-  const speakFromIndex = useCallback((fromIndex: number, currentSpeed: number = speed, voiceToUse: string = selectedVoice) => {
-    if (!('speechSynthesis' in window)) return;
+  // Web Audio Context initialization
+  const getAudioContext = useCallback(() => {
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      audioContextRef.current = new AudioCtx({ sampleRate: 24000 });
+    }
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().catch(() => {});
+    }
+    return audioContextRef.current;
+  }, []);
 
-    window.speechSynthesis.cancel();
-    if (timerRef.current) clearInterval(timerRef.current);
+  // Play audio buffer from an offset (seconds)
+  const playFromOffset = useCallback((offsetSec: number, currentSpeed: number = speed) => {
+    stopAudio();
+    const ctx = getAudioContext();
+    const buffer = audioBufferRef.current;
+    if (!buffer) return;
 
-    const clampedIndex = Math.max(0, Math.min(cleanText.length - 1, fromIndex));
-    const textSlice = cleanText.slice(clampedIndex);
+    const clampedOffset = Math.max(0, Math.min(buffer.duration - 0.05, offsetSec));
+    pausedOffsetRef.current = clampedOffset;
+    startContextTimeRef.current = ctx.currentTime;
 
-    if (!textSlice.trim()) {
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = currentSpeed;
+    source.connect(ctx.destination);
+    sourceNodeRef.current = source;
+
+    source.onended = () => {
+      if (tickerRef.current) clearInterval(tickerRef.current);
       setIsPlaying(false);
       setIsPaused(false);
+      setCurrentPlayTime(buffer.duration);
+      pausedOffsetRef.current = 0;
+    };
+
+    try {
+      source.start(0, clampedOffset);
+      setIsPlaying(true);
+      setIsPaused(false);
+    } catch (err) {
+      console.warn("AudioBufferSource start error:", err);
       return;
     }
 
-    startOffsetRef.current = clampedIndex;
-    currentCharIndexRef.current = clampedIndex;
-    setCurrentCharIndex(clampedIndex);
-    startTimeRef.current = Date.now();
+    // High frequency ticker for buttery smooth progress bar
+    if (tickerRef.current) clearInterval(tickerRef.current);
+    tickerRef.current = setInterval(() => {
+      if (!sourceNodeRef.current || ctx.state !== 'running') return;
+      const elapsed = (ctx.currentTime - startContextTimeRef.current) * currentSpeed;
+      const totalElapsed = Math.min(buffer.duration, pausedOffsetRef.current + elapsed);
+      setCurrentPlayTime(totalElapsed);
+    }, 100);
+  }, [getAudioContext, speed, stopAudio]);
 
-    const u = new SpeechSynthesisUtterance(textSlice);
+  // Fallback to browser synthesis if neural model fails
+  const playBrowserFallback = useCallback((fromCharIdx: number = 0, currentSpeed: number = speed) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    stopAudio();
+    setIsFallbackMode(true);
+
+    const slice = cleanText.slice(fromCharIdx);
+    const u = new SpeechSynthesisUtterance(slice);
     u.rate = Math.max(0.5, Math.min(2.0, currentSpeed));
-    u.pitch = 1.0 + (userSettings.pitch ? userSettings.pitch / 20 : 0);
-    u.volume = typeof userSettings.voiceVolume === 'number' ? userSettings.voiceVolume / 100 : 1.0;
 
-    const matchedVoice = getMatchingVoice(voiceToUse);
-    if (matchedVoice) {
-      u.voice = matchedVoice;
-    }
+    // Approximate total duration
+    const approxDuration = Math.max(2, Math.round(cleanText.length / (14 * currentSpeed)));
+    setDuration(approxDuration);
 
-    u.onboundary = (event: SpeechSynthesisEvent) => {
-      if (event.name === 'word' || event.charIndex !== undefined) {
-        const absoluteIndex = startOffsetRef.current + (event.charIndex || 0);
-        currentCharIndexRef.current = absoluteIndex;
-        setCurrentCharIndex(absoluteIndex);
-      }
-    };
-
-    // Smooth ticker fallback so visual progress bar NEVER freezes on browsers that throttle onboundary
-    const charsPerSecond = 14 * currentSpeed;
-    timerRef.current = setInterval(() => {
-      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-        const elapsedSec = (Date.now() - startTimeRef.current) / 1000;
-        const estimatedAdvance = Math.min(cleanText.length, startOffsetRef.current + Math.round(elapsedSec * charsPerSecond));
-        if (estimatedAdvance > currentCharIndexRef.current) {
-          currentCharIndexRef.current = estimatedAdvance;
-          setCurrentCharIndex(estimatedAdvance);
-        }
-      }
-    }, 150);
-
+    const startTime = Date.now();
     u.onend = () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (tickerRef.current) clearInterval(tickerRef.current);
       setIsPlaying(false);
       setIsPaused(false);
-      setCurrentCharIndex(cleanText.length);
+      setCurrentPlayTime(approxDuration);
     };
-
-    u.onerror = (e) => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (e.error !== 'interrupted') {
-        console.error("TTS error:", e);
-      }
+    u.onerror = () => {
+      if (tickerRef.current) clearInterval(tickerRef.current);
       setIsPlaying(false);
       setIsPaused(false);
     };
 
     utteranceRef.current = u;
+    window.speechSynthesis.speak(u);
     setIsPlaying(true);
     setIsPaused(false);
-    window.speechSynthesis.speak(u);
-  }, [cleanText, speed, selectedVoice, userSettings, getMatchingVoice]);
 
+    tickerRef.current = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000 * currentSpeed;
+      setCurrentPlayTime(Math.min(approxDuration, elapsed));
+    }, 120);
+  }, [cleanText, speed, stopAudio]);
+
+  // Load and synthesize audio with Gemini Voice Models
+  const loadAndPlayVoice = useCallback(async (voice: string) => {
+    stopAudio();
+    setIsGenerating(true);
+    setIsPlaying(false);
+    setIsPaused(false);
+    pausedOffsetRef.current = 0;
+    setCurrentPlayTime(0);
+
+    // Check memory cache
+    if (audioCacheRef.current.has(voice)) {
+      const cached = audioCacheRef.current.get(voice)!;
+      audioBufferRef.current = cached;
+      setDuration(cached.duration);
+      setIsGenerating(false);
+      playFromOffset(0, speed);
+      return;
+    }
+
+    try {
+      const base64Audio = await generateSpeechWithGemini(cleanText, voice);
+      if (!base64Audio) {
+        throw new Error("Empty audio received from voice model");
+      }
+
+      const ctx = getAudioContext();
+      const decodedBuffer = decodePCM16AudioData(base64Audio, ctx, 24000);
+      if (!decodedBuffer) {
+        throw new Error("PCM decoding failed");
+      }
+
+      audioCacheRef.current.set(voice, decodedBuffer);
+      audioBufferRef.current = decodedBuffer;
+      setDuration(decodedBuffer.duration);
+      setIsGenerating(false);
+      setIsFallbackMode(false);
+      playFromOffset(0, speed);
+    } catch (err) {
+      console.warn("Gemini voice model synthesis error, using fallback:", err);
+      setIsGenerating(false);
+      playBrowserFallback(0, speed);
+    }
+  }, [cleanText, getAudioContext, playBrowserFallback, playFromOffset, speed, stopAudio]);
+
+  // Initial trigger on mount or voice change
   useEffect(() => {
-    speakFromIndex(0, speed, selectedVoice);
+    loadAndPlayVoice(selectedVoice);
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
+      stopAudio();
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        try { audioContextRef.current.close(); } catch (e) {}
       }
     };
-  }, []);
+  }, [selectedVoice]);
 
+  // Toggle Play / Pause
   const handleTogglePlayPause = () => {
-    if (!('speechSynthesis' in window)) return;
+    if (isGenerating) return;
+
+    if (isFallbackMode) {
+      if (isPlaying && !isPaused) {
+        if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.pause();
+        setIsPaused(true);
+      } else if (isPaused) {
+        if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.resume();
+        setIsPaused(false);
+      } else {
+        playBrowserFallback(0, speed);
+      }
+      return;
+    }
 
     if (isPlaying && !isPaused) {
-      window.speechSynthesis.cancel();
-      if (timerRef.current) clearInterval(timerRef.current);
+      // Pause
+      const ctx = audioContextRef.current;
+      if (ctx) {
+        const elapsed = (ctx.currentTime - startContextTimeRef.current) * speed;
+        pausedOffsetRef.current += elapsed;
+      }
+      stopAudio();
       setIsPaused(true);
+      setIsPlaying(false);
     } else if (isPaused) {
-      speakFromIndex(currentCharIndexRef.current, speed, selectedVoice);
+      // Resume
+      playFromOffset(pausedOffsetRef.current, speed);
     } else {
-      speakFromIndex(0, speed, selectedVoice);
+      // Replay from start
+      playFromOffset(0, speed);
     }
   };
 
+  // Cycle playback speed
   const availableSpeeds = [0.75, 1, 1.25, 1.5, 2];
   const cycleSpeed = () => {
     const nextIdx = (availableSpeeds.indexOf(speed) + 1) % availableSpeeds.length;
     const newSpeed = availableSpeeds[nextIdx];
     setSpeed(newSpeed);
-    if (isPlaying && !isPaused) {
-      speakFromIndex(currentCharIndexRef.current, newSpeed, selectedVoice);
+
+    if (isPlaying && !isPaused && !isFallbackMode) {
+      const ctx = audioContextRef.current;
+      if (ctx) {
+        const elapsed = (ctx.currentTime - startContextTimeRef.current) * speed;
+        pausedOffsetRef.current += elapsed;
+      }
+      playFromOffset(pausedOffsetRef.current, newSpeed);
     }
   };
 
+  // Select voice persona
   const handleSelectVoice = (v: string) => {
     setSelectedVoice(v);
     setShowVoicePicker(false);
-    if (isPlaying && !isPaused) {
-      speakFromIndex(currentCharIndexRef.current, speed, v);
-    }
   };
 
+  // Scrub progress
   const handleProgressScrub = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    if (!progressTrackRef.current) return;
+    if (!progressTrackRef.current || duration <= 0) return;
     const rect = progressTrackRef.current.getBoundingClientRect();
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clickRatio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const targetCharIdx = Math.floor(clickRatio * cleanText.length);
-    
-    speakFromIndex(targetCharIdx, speed, selectedVoice);
+    const targetTime = clickRatio * duration;
+
+    setCurrentPlayTime(targetTime);
+    pausedOffsetRef.current = targetTime;
+
+    if (!isFallbackMode) {
+      playFromOffset(targetTime, speed);
+    } else {
+      const targetCharIdx = Math.floor(clickRatio * cleanText.length);
+      playBrowserFallback(targetCharIdx, speed);
+    }
   };
 
   const formatTime = (secs: number) => {
@@ -291,17 +397,25 @@ export const AudiblePlayer: React.FC<AudiblePlayerProps> = ({
 
   return (
     <div className="w-full flex justify-center py-2 px-3 sticky top-0 z-30 select-none pointer-events-none">
-      <div className="pointer-events-auto bg-[#18181b]/95 border border-white/15 text-white rounded-2xl sm:rounded-full shadow-2xl px-3.5 sm:px-5 py-2.5 flex flex-col sm:flex-row items-center gap-2 sm:gap-3.5 backdrop-blur-xl animate-in fade-in slide-in-from-top-3 duration-200 max-w-lg w-full ring-1 ring-white/10">
+      <div className="pointer-events-auto bg-[#14151f]/95 border border-cyan-500/30 text-white rounded-2xl shadow-2xl p-2.5 sm:px-4 sm:py-2.5 flex flex-col sm:flex-row items-center gap-2 sm:gap-3.5 backdrop-blur-2xl animate-in fade-in slide-in-from-top-3 duration-200 max-w-xl w-full ring-1 ring-cyan-500/20">
         
-        {/* Top Controls on Mobile / Inline on Desktop */}
-        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2.5">
-          {/* Play/Pause Button */}
+        {/* Controls Row on Mobile / Left Section on Desktop */}
+        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 flex-shrink-0">
+          
+          {/* Play/Pause / Loading Spinner Button */}
           <button
             onClick={handleTogglePlayPause}
-            className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md flex-shrink-0"
-            title={isPlaying && !isPaused ? 'Pause' : 'Play'}
+            disabled={isGenerating}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-md flex-shrink-0 ${
+              isGenerating
+                ? 'bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 cursor-wait'
+                : 'bg-cyan-500 hover:bg-cyan-400 text-black active:scale-95'
+            }`}
+            title={isGenerating ? 'Synthesizing neural voice...' : isPlaying && !isPaused ? 'Pause' : 'Play'}
           >
-            {isPlaying && !isPaused ? (
+            {isGenerating ? (
+              <div className="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+            ) : isPlaying && !isPaused ? (
               <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
                 <rect x="6" y="5" width="4" height="14" rx="1" />
                 <rect x="14" y="5" width="4" height="14" rx="1" />
@@ -313,84 +427,103 @@ export const AudiblePlayer: React.FC<AudiblePlayerProps> = ({
             )}
           </button>
 
-          {/* Voice Selector Badge */}
+          {/* Gemini Neural Voice Persona Badge */}
           <div className="relative">
             <button
               onClick={() => setShowVoicePicker(!showVoicePicker)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-semibold text-zinc-200 transition-colors"
-              title="Select Voice"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/40 text-xs font-semibold text-cyan-200 transition-colors shadow-sm"
+              title="Select Gemini Voice Model"
             >
-              <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z" />
-              </svg>
-              <span>{selectedVoice}</span>
-              <svg className="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="font-mono">{selectedVoice}</span>
+              <span className="text-[9px] uppercase px-1 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono hidden xs:inline">
+                Voice Model
+              </span>
+              <svg className="w-3 h-3 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
             {/* Voice Dropdown Popover */}
             {showVoicePicker && (
-              <div className="absolute left-0 top-full mt-2 w-44 bg-[#1e1e24] border border-white/20 rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-2 py-1">Select Persona Voice</div>
-                <div className="grid grid-cols-2 gap-1">
-                  {VOICES_LIST.map(v => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => handleSelectVoice(v)}
-                      className={`px-2 py-1.5 text-xs text-left rounded-lg transition-colors font-medium ${
-                        selectedVoice === v ? 'bg-cyan-600 text-white font-bold' : 'text-zinc-300 hover:bg-white/10'
-                      }`}
-                    >
-                      {v}
-                    </button>
-                  ))}
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowVoicePicker(false)} />
+                <div className="absolute left-0 top-full mt-2 w-52 bg-[#181926] border border-cyan-500/30 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100 backdrop-blur-2xl">
+                  <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider px-2 py-1 border-b border-white/10 mb-1 flex items-center justify-between">
+                    <span>Gemini Voice Models</span>
+                    <span className="text-[9px] text-neutral-400 font-mono">24kHz Neural</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {VOICES_LIST.map(v => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => handleSelectVoice(v)}
+                        className={`px-2 py-1.5 text-xs text-left rounded-xl transition-all font-medium flex items-center justify-between ${
+                          selectedVoice === v 
+                            ? 'bg-cyan-500 text-black font-bold shadow-sm' 
+                            : 'text-neutral-300 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        <span>{v}</span>
+                        {selectedVoice === v && <span className="text-[10px]">✓</span>}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
 
           {/* Speed Selector Button */}
           <button
             onClick={cycleSpeed}
-            className="px-2 py-1 text-xs font-mono font-bold text-cyan-300 hover:text-white rounded-lg bg-cyan-950/50 border border-cyan-500/30 hover:bg-cyan-900/50 transition-colors flex-shrink-0"
+            className="px-2 py-1 text-xs font-mono font-bold text-cyan-300 hover:text-white rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex-shrink-0"
             title="Cycle Playback Speed"
           >
             {speed}x
           </button>
         </div>
 
-        {/* Center: Visual Audio Waveform & Interactive Sound Progress Bar */}
-        <div className="flex-1 w-full space-y-1.5 px-1 min-w-[140px]">
-          <div className="flex items-center justify-between text-[10px] font-mono text-zinc-300 px-0.5">
-            <span>{formatTime(currentSeconds)}</span>
-            <div className="flex items-center gap-1">
-              {[35, 65, 25, 90, 45, 80, 30, 95, 55, 40, 75, 30, 85, 50, 90, 60, 35, 80].map((h, i) => (
-                <span
-                  key={i}
-                  className={`w-0.5 rounded-full transition-all duration-150 ${
-                    isPlaying && !isPaused ? 'bg-cyan-400' : 'bg-white/20'
-                  }`}
-                  style={{
-                    height: isPlaying && !isPaused ? `${Math.max(3, (h * ((i % 3) + 1)) % 14 + 3)}px` : '3px',
-                    animation: isPlaying && !isPaused ? `pulse 0.7s infinite ease-in-out ${i * 40}ms` : 'none'
-                  }}
-                />
-              ))}
+        {/* Center: Realtime Sound Waveform & Seekable Progress Bar */}
+        <div className="flex-1 w-full space-y-1 px-1 min-w-[140px]">
+          <div className="flex items-center justify-between text-[10px] font-mono text-cyan-200/80 px-0.5">
+            <span>{formatTime(Math.round(currentPlayTime))}</span>
+            
+            {/* Waveform graphic */}
+            <div className="flex items-center gap-1 h-3">
+              {isGenerating ? (
+                <span className="text-[10px] text-cyan-300 animate-pulse font-sans">
+                  Synthesizing Voice...
+                </span>
+              ) : (
+                [30, 70, 25, 95, 45, 80, 30, 100, 55, 40, 75, 30, 85, 50, 90, 60, 35, 80].map((h, i) => (
+                  <span
+                    key={i}
+                    className={`w-0.5 rounded-full transition-all duration-150 ${
+                      isPlaying && !isPaused ? 'bg-cyan-400' : 'bg-white/20'
+                    }`}
+                    style={{
+                      height: isPlaying && !isPaused ? `${Math.max(3, (h * ((i % 3) + 1)) % 14 + 3)}px` : '3px',
+                      animation: isPlaying && !isPaused ? `pulse 0.7s infinite ease-in-out ${i * 40}ms` : 'none'
+                    }}
+                  />
+                ))
+              )}
             </div>
-            <span>{formatTime(totalSeconds)}</span>
+
+            <span>{formatTime(Math.round(duration))}</span>
           </div>
 
-          {/* Interactive Visual Sound Progress Bar */}
+          {/* Interactive Seek Bar */}
           <div
             ref={progressTrackRef}
             onClick={handleProgressScrub}
-            className="relative w-full h-2 bg-white/15 hover:bg-white/25 rounded-full cursor-pointer overflow-hidden transition-all group"
-            title="Click to seek speech playback"
+            className="relative w-full h-2 bg-white/10 hover:bg-white/20 rounded-full cursor-pointer overflow-hidden transition-all group"
+            title="Click or drag to seek voice playback"
           >
             <div
-              className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-cyan-500 to-indigo-500 rounded-full transition-all duration-100"
+              className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-cyan-500 via-teal-400 to-indigo-500 rounded-full transition-all duration-100"
               style={{ width: `${progressPercent}%` }}
             />
             <div
@@ -403,12 +536,11 @@ export const AudiblePlayer: React.FC<AudiblePlayerProps> = ({
         {/* Close Button */}
         <button
           onClick={() => {
-            if (timerRef.current) clearInterval(timerRef.current);
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            stopAudio();
             onClose();
           }}
-          className="text-neutral-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
-          title="Close player"
+          className="text-neutral-400 hover:text-white p-1 rounded-xl hover:bg-white/10 transition-colors flex-shrink-0 self-end sm:self-center"
+          title="Close voice player"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

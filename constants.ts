@@ -54,3 +54,27 @@ export const DEFAULT_SHORTCUTS: ShortcutItem[] = [
   { id: 'toggle_study', label: 'Toggle Study Mode', keys: { key: 'b', alt: true } }, // B for Book
   { id: 'focus_input', label: 'Focus Chat Input', keys: { key: '/', alt: true } },
 ];
+
+export const DEFAULT_CUSTOM_PROMPTS = [
+  {
+    id: 'code-review',
+    title: 'Code Review & Security Audit',
+    category: 'Engineering',
+    description: 'Review code for security vulnerabilities, efficiency, and edge cases',
+    prompt: 'Please thoroughly review the following code for bugs, security vulnerabilities, edge cases, and performance optimizations. Provide specific refactored examples.'
+  },
+  {
+    id: 'executive-summary',
+    title: 'Executive Briefing',
+    category: 'Business',
+    description: 'Condense long text into high-impact bullet points and decisions',
+    prompt: 'Summarize the following document into a concise executive briefing with key findings, strategic implications, and actionable next steps.'
+  },
+  {
+    id: 'deep-explain',
+    title: 'First-Principles Explanation',
+    category: 'Learning',
+    description: 'Explain complex concepts from first principles with clear analogies',
+    prompt: 'Explain the following concept from first principles using clear mental models, step-by-step logic, and intuitive analogies without unnecessary jargon.'
+  }
+];

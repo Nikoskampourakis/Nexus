@@ -1,5 +1,7 @@
 import { AppTheme } from '../types';
 
+export type { AppTheme };
+
 const THEME_KEY = 'nexus_current_theme';
 const SAVED_THEMES_KEY = 'nexus_saved_themes';
 
@@ -50,17 +52,349 @@ export const OLED_DARK_THEME: AppTheme = {
 
 export const CYBERPUNK_THEME: AppTheme = {
   id: 'cyberpunk',
-  name: 'Night City',
+  name: 'Cyberpunk Night City',
   colors: {
-    background: '#050505',
-    sidebar: '#000000',
-    card: '#121212',
-    textPrimary: '#ff003c',
-    textSecondary: '#fcee0a',
-    accent: 'linear-gradient(90deg, #fcee0a 0%, #ff003c 100%)',
-    border: '#333333',
+    background: '#0a0a10',
+    sidebar: '#050508',
+    card: '#12121e',
+    textPrimary: '#00f0ff',
+    textSecondary: '#ff007f',
+    accent: '#00f0ff',
+    border: '#2a1a3a',
   },
-  isGradientAccent: true,
+  isGradientAccent: false,
+};
+
+export const EMERALD_MATRIX_THEME: AppTheme = {
+  id: 'emerald_matrix',
+  name: 'Emerald Matrix',
+  colors: {
+    background: '#030d07',
+    sidebar: '#010804',
+    card: '#08170d',
+    textPrimary: '#00ff66',
+    textSecondary: '#10b981',
+    accent: '#00ff66',
+    border: '#0d381c',
+  },
+  isGradientAccent: false,
+};
+
+export const SYNTHWAVE_THEME: AppTheme = {
+  id: 'synthwave',
+  name: 'Midnight Synthwave',
+  colors: {
+    background: '#0f081d',
+    sidebar: '#080411',
+    card: '#1a0e30',
+    textPrimary: '#f5d0fe',
+    textSecondary: '#c084fc',
+    accent: '#d946ef',
+    border: '#3b1c6e',
+  },
+  isGradientAccent: false,
+};
+
+export const SOLAR_AMBER_THEME: AppTheme = {
+  id: 'solar_amber',
+  name: 'Solar Amber Luxe',
+  colors: {
+    background: '#0e0c08',
+    sidebar: '#070603',
+    card: '#18140c',
+    textPrimary: '#fef3c7',
+    textSecondary: '#d97706',
+    accent: '#f59e0b',
+    border: '#332610',
+  },
+  isGradientAccent: false,
+};
+
+export const NORDIC_FROST_THEME: AppTheme = {
+  id: 'nordic_frost',
+  name: 'Nordic Frost',
+  colors: {
+    background: '#081119',
+    sidebar: '#04090e',
+    card: '#0f1f2d',
+    textPrimary: '#e0f2fe',
+    textSecondary: '#7dd3fc',
+    accent: '#38bdf8',
+    border: '#16354d',
+  },
+  isGradientAccent: false,
+};
+
+export const MONOCHROME_SLATE_THEME: AppTheme = {
+  id: 'monochrome_slate',
+  name: 'Bauhaus Monochrome',
+  colors: {
+    background: '#121214',
+    sidebar: '#0a0a0c',
+    card: '#1a1a1e',
+    textPrimary: '#f4f4f5',
+    textSecondary: '#a1a1aa',
+    accent: '#ffffff',
+    border: '#27272a',
+  },
+  isGradientAccent: false,
+};
+
+export const ROSE_QUARTZ_THEME: AppTheme = {
+  id: 'rose_quartz',
+  name: 'Rose Quartz & Burgundy',
+  colors: {
+    background: '#140a0f',
+    sidebar: '#0b0408',
+    card: '#201018',
+    textPrimary: '#ffe4e6',
+    textSecondary: '#fb7185',
+    accent: '#f43f5e',
+    border: '#44192a',
+  },
+  isGradientAccent: false,
+};
+
+export const DEEP_OCEAN_THEME: AppTheme = {
+  id: 'deep_ocean',
+  name: 'Abyssal Deep Ocean',
+  colors: {
+    background: '#040d1a',
+    sidebar: '#02070f',
+    card: '#08182b',
+    textPrimary: '#e0f2fe',
+    textSecondary: '#38bdf8',
+    accent: '#0284c7',
+    border: '#0c2d4a',
+  },
+  isGradientAccent: false,
+};
+
+export const TOKYO_NIGHT_THEME: AppTheme = {
+  id: 'tokyo_night',
+  name: 'Tokyo Night Neon',
+  colors: {
+    background: '#1a1b26',
+    sidebar: '#16161e',
+    card: '#24283b',
+    textPrimary: '#c0caf5',
+    textSecondary: '#7aa2f7',
+    accent: '#bb9af7',
+    border: '#2f3549',
+  },
+  isGradientAccent: false,
+};
+
+export const DRACULA_VELVET_THEME: AppTheme = {
+  id: 'dracula_velvet',
+  name: 'Dracula Velvet',
+  colors: {
+    background: '#282a36',
+    sidebar: '#21222c',
+    card: '#343746',
+    textPrimary: '#f8f8f2',
+    textSecondary: '#6272a4',
+    accent: '#ff79c6',
+    border: '#44475a',
+  },
+  isGradientAccent: false,
+};
+
+export const FOREST_MOSS_THEME: AppTheme = {
+  id: 'forest_moss',
+  name: 'Evergreen Forest & Moss',
+  colors: {
+    background: '#07120a',
+    sidebar: '#030a05',
+    card: '#0d2113',
+    textPrimary: '#ecfdf5',
+    textSecondary: '#34d399',
+    accent: '#10b981',
+    border: '#163b20',
+  },
+  isGradientAccent: false,
+};
+
+export const SUNSET_HORIZON_THEME: AppTheme = {
+  id: 'sunset_horizon',
+  name: 'Sunset Horizon Gold',
+  colors: {
+    background: '#160b08',
+    sidebar: '#0e0604',
+    card: '#24120e',
+    textPrimary: '#fff7ed',
+    textSecondary: '#fb923c',
+    accent: '#f97316',
+    border: '#441d14',
+  },
+  isGradientAccent: false,
+};
+
+export const MATCHA_LATTE_THEME: AppTheme = {
+  id: 'matcha_latte',
+  name: 'Matcha Latte Cream (Light)',
+  colors: {
+    background: '#f4f7f2',
+    sidebar: '#e8efe5',
+    card: '#ffffff',
+    textPrimary: '#1e2920',
+    textSecondary: '#4d6952',
+    accent: '#447d4e',
+    border: '#d2e0ce',
+  },
+  isGradientAccent: false,
+};
+
+export const COFFEE_ESPRESSO_THEME: AppTheme = {
+  id: 'coffee_espresso',
+  name: 'Warm Espresso & Cream',
+  colors: {
+    background: '#120d0a',
+    sidebar: '#0a0705',
+    card: '#1e1611',
+    textPrimary: '#fed7aa',
+    textSecondary: '#c29b7a',
+    accent: '#d97706',
+    border: '#38261a',
+  },
+  isGradientAccent: false,
+};
+
+export const AURORA_BOREALIS_THEME: AppTheme = {
+  id: 'aurora_borealis',
+  name: 'Aurora Borealis Glow',
+  colors: {
+    background: '#060e14',
+    sidebar: '#03080c',
+    card: '#0c1a24',
+    textPrimary: '#a7f3d0',
+    textSecondary: '#2dd4bf',
+    accent: '#06b6d4',
+    border: '#153545',
+  },
+  isGradientAccent: false,
+};
+
+export const LAVENDER_MIST_THEME: AppTheme = {
+  id: 'lavender_mist',
+  name: 'Lavender Mist (Light)',
+  colors: {
+    background: '#f8f7fc',
+    sidebar: '#eeebf7',
+    card: '#ffffff',
+    textPrimary: '#2e1065',
+    textSecondary: '#7c3aed',
+    accent: '#8b5cf6',
+    border: '#ddd6fe',
+  },
+  isGradientAccent: false,
+};
+
+export const GOLDEN_OBSIDIAN_THEME: AppTheme = {
+  id: 'golden_obsidian',
+  name: 'Golden Obsidian Royal',
+  colors: {
+    background: '#0a0a08',
+    sidebar: '#050504',
+    card: '#141410',
+    textPrimary: '#fef08a',
+    textSecondary: '#eab308',
+    accent: '#facc15',
+    border: '#2c2912',
+  },
+  isGradientAccent: false,
+};
+
+export const CRIMSON_EMBER_THEME: AppTheme = {
+  id: 'crimson_ember',
+  name: 'Crimson Ember Forge',
+  colors: {
+    background: '#140505',
+    sidebar: '#0a0202',
+    card: '#220909',
+    textPrimary: '#fee2e2',
+    textSecondary: '#f87171',
+    accent: '#ef4444',
+    border: '#451010',
+  },
+  isGradientAccent: false,
+};
+
+export const VAPORWAVE_80S_THEME: AppTheme = {
+  id: 'vaporwave_80s',
+  name: 'Vaporwave 1984',
+  colors: {
+    background: '#120b22',
+    sidebar: '#0b0616',
+    card: '#1f1338',
+    textPrimary: '#fdf4ff',
+    textSecondary: '#e879f9',
+    accent: '#22d3ee',
+    border: '#432070',
+  },
+  isGradientAccent: false,
+};
+
+export const CURATED_THEMES: AppTheme[] = [
+  DEFAULT_THEME,
+  WHITE_THEME,
+  OLED_DARK_THEME,
+  CYBERPUNK_THEME,
+  EMERALD_MATRIX_THEME,
+  SYNTHWAVE_THEME,
+  SOLAR_AMBER_THEME,
+  NORDIC_FROST_THEME,
+  MONOCHROME_SLATE_THEME,
+  ROSE_QUARTZ_THEME,
+  DEEP_OCEAN_THEME,
+  TOKYO_NIGHT_THEME,
+  DRACULA_VELVET_THEME,
+  FOREST_MOSS_THEME,
+  SUNSET_HORIZON_THEME,
+  MATCHA_LATTE_THEME,
+  COFFEE_ESPRESSO_THEME,
+  AURORA_BOREALIS_THEME,
+  LAVENDER_MIST_THEME,
+  GOLDEN_OBSIDIAN_THEME,
+  CRIMSON_EMBER_THEME,
+  VAPORWAVE_80S_THEME,
+];
+
+export const DAILY_THEMES_CYCLE: { day: string; themeId: string; title: string; quote: string }[] = [
+  { day: 'Sunday', themeId: 'solar_amber', title: 'Solar Flare Sunday', quote: 'Recharge your energy and illuminate ambitious horizons.' },
+  { day: 'Monday', themeId: 'default', title: 'Nexus Modern Monday', quote: 'A fresh week of focus, clarity, and bold breakthroughs.' },
+  { day: 'Tuesday', themeId: 'deep_ocean', title: 'Deep Ocean Tuesday', quote: 'Dive deep into complex challenges with calm precision.' },
+  { day: 'Wednesday', themeId: 'emerald_matrix', title: 'Emerald Matrix Wednesday', quote: 'Midweek momentum: compile ideas into living systems.' },
+  { day: 'Thursday', themeId: 'tokyo_night', title: 'Tokyo Neon Thursday', quote: 'High speed, high fidelity, and boundless innovation.' },
+  { day: 'Friday', themeId: 'synthwave', title: 'Synthwave Friday', quote: 'Celebrate accomplishments with vibrant futuristic rhythm.' },
+  { day: 'Saturday', themeId: 'aurora_borealis', title: 'Aurora Glow Saturday', quote: 'Create without limits under the celestial lights.' },
+];
+
+export const getDailyThemeInfo = () => {
+  const dayIndex = new Date().getDay();
+  const info = DAILY_THEMES_CYCLE[dayIndex] || DAILY_THEMES_CYCLE[1];
+  const theme = CURATED_THEMES.find(t => t.id === info.themeId) || DEFAULT_THEME;
+  return { ...info, theme };
+};
+
+export const isAutoDailyThemeEnabled = (): boolean => {
+  try {
+    return localStorage.getItem('nexus_auto_daily_theme') === 'true';
+  } catch {
+    return false;
+  }
+};
+
+export const setAutoDailyTheme = (enabled: boolean) => {
+  try {
+    localStorage.setItem('nexus_auto_daily_theme', enabled ? 'true' : 'false');
+    if (enabled) {
+      const { theme } = getDailyThemeInfo();
+      applyTheme(theme);
+    }
+  } catch (e) {
+    console.error('Failed to set auto daily theme', e);
+  }
 };
 
 export interface AccentColorPreset {

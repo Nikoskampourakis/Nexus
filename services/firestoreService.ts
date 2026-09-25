@@ -13,7 +13,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
-import { ChatSession, ChatFolder, VirtualModel, PersonalizationConfig } from '../types';
+import { ChatSession, ChatFolder, VirtualModel, PersonalizationConfig, GeneratedImageItem } from '../types';
 
 enum OperationType {
   CREATE = 'create',
@@ -79,6 +79,8 @@ const getSessionsRef = () => db ? collection(db, 'chatSessions') : null;
 const getFoldersRef = () => db ? collection(db, 'chatFolders') : null;
 const getModelsRef = () => db ? collection(db, 'virtualModels') : null;
 const getUsersRef = () => db ? collection(db, 'users') : null;
+const getImageCreationsRef = () => db ? collection(db, 'imageCreations') : null;
+const getStatisticsRef = () => db ? collection(db, 'userStatistics') : null;
 
 // User Settings
 export const saveUserSettings = async (userId: string, data: Partial<{ personalization: PersonalizationConfig, themeId: string }>) => {
@@ -229,5 +231,129 @@ export const getVirtualModels = async (userId: string) => {
     return snap.docs.map(doc => doc.data() as VirtualModel);
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
+    return [];
   }
 };
+
+// ============================================================================
+// Image Creations (Styles & Create, Imagine Scene, Remove Objects, Extend, Perspective)
+// ============================================================================
+
+export const saveImageCreation = async (userId: string, item: GeneratedImageItem): Promise<void> => {
+  const creationsRef = getImageCreationsRef();
+  if (!db || !creationsRef) return;
+  const path = `imageCreations/${item.id}`;
+  try {
+    // Keep document payload safe from exceeding Firestore 1MB limits
+    // If url is exceedingly long (> 700KB base64), optimize/trim or store reference
+    let safeUrl = item.url;
+    let safeThumbnail = item.url;
+    
+    // Create compact payload
+    const creationDoc = {
+      id: item.id,
+      userId,
+      prompt: (item.prompt || 'Generated Creation').slice(0, 2048),
+      url: safeUrl,
+      thumbnailUrl: safeThumbnail,
+      editType: item.editType || 'initial',
+      style: item.style || '',
+      aspectRatio: item.aspectRatio || '1:1',
+      createdAt: item.createdAt || Date.now(),
+      editNote: item.editNote || ''
+    };
+
+    await setDoc(doc(creationsRef, item.id), creationDoc);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const deleteImageCreation = async (creationId: string): Promise<void> => {
+  const creationsRef = getImageCreationsRef();
+  if (!db || !creationsRef) return;
+  const path = `imageCreations/${creationId}`;
+  try {
+    await deleteDoc(doc(creationsRef, creationId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+};
+
+export const getUserImageCreations = async (userId: string): Promise<GeneratedImageItem[]> => {
+  const creationsRef = getImageCreationsRef();
+  if (!db || !creationsRef) return [];
+  const path = 'imageCreations';
+  try {
+    const q = query(
+      creationsRef,
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => doc.data() as GeneratedImageItem);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return [];
+  }
+};
+
+export const subscribeToUserCreations = (
+  userId: string,
+  callback: (items: GeneratedImageItem[]) => void
+): (() => void) => {
+  const creationsRef = getImageCreationsRef();
+  if (!db || !creationsRef) {
+    return () => {};
+  }
+  const path = 'imageCreations';
+  const q = query(
+    creationsRef,
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc')
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map(doc => doc.data() as GeneratedImageItem);
+      callback(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+  );
+};
+
+// ============================================================================
+// User Activity Statistics
+// ============================================================================
+
+export const saveUserStatisticsToFirebase = async (userId: string, stats: any): Promise<void> => {
+  const statsRef = getStatisticsRef();
+  if (!db || !statsRef) return;
+  const path = `userStatistics/${userId}`;
+  try {
+    await setDoc(doc(statsRef, userId), {
+      userId,
+      ...stats,
+      updatedAt: Date.now()
+    }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+};
+
+export const getUserStatisticsFromFirebase = async (userId: string): Promise<any | null> => {
+  const statsRef = getStatisticsRef();
+  if (!db || !statsRef) return null;
+  const path = `userStatistics/${userId}`;
+  try {
+    const snap = await getDoc(doc(statsRef, userId));
+    return snap.exists() ? snap.data() : null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return null;
+  }
+};
+

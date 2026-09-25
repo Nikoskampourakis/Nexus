@@ -262,10 +262,10 @@ export const CreateTab: React.FC<CreateTabProps> = ({
   const [showComparison, setShowComparison] = useState(false);
 
   // Interactive Area Selection (Select objects/people to remove or link message to add/modify)
-  const [selectedArea, setSelectedArea] = useState<{ x: number; y: number; width: number; height: number; action: 'remove' | 'modify_or_add' } | null>(null);
+  const [selectedArea, setSelectedArea] = useState<{ x: number; y: number; width: number; height: number; action: 'remove' | 'modify_or_add' | 'add' | 'modify' } | null>(null);
   const [isSelectingArea, setIsSelectingArea] = useState(false);
   const [areaDragStart, setAreaDragStart] = useState<{ x: number; y: number } | null>(null);
-  const [areaActionChoice, setAreaActionChoice] = useState<'remove' | 'modify_or_add'>('remove');
+  const [areaActionChoice, setAreaActionChoice] = useState<'remove' | 'modify_or_add' | 'add' | 'modify'>('add');
   const [areaCustomPrompt, setAreaCustomPrompt] = useState('');
 
   // Interactive 3D Perspective Dragging State
@@ -666,6 +666,13 @@ export const CreateTab: React.FC<CreateTabProps> = ({
         action: editorTool === 'remove_object' ? 'remove' : areaActionChoice
       });
     }
+  };
+
+  const handleCanvasTouchEnd = () => {
+    setIsDraggingPerspective(false);
+    setIsSelectingArea(false);
+    setPerspectiveDragStart(null);
+    setAreaDragStart(null);
   };
 
   const handleDownload = (item: GeneratedImageItem) => {
@@ -1942,9 +1949,9 @@ export const CreateTab: React.FC<CreateTabProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setPerspectiveMode('preset')}
+                          onClick={() => setPerspectiveMode('presets')}
                           className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all ${
-                            perspectiveMode === 'preset'
+                            perspectiveMode === 'presets'
                               ? 'bg-amber-500 text-black shadow'
                               : 'text-neutral-400 hover:text-white'
                           }`}

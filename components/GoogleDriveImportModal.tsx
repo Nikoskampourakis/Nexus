@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, FileText, File, HardDrive, Loader2, Check, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { Search, FileText, File, Loader2, Check, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { GoogleDriveIcon } from './GoogleAppIcons';
 import { listDriveFiles, getDriveFileTextOrContent, DriveFileItem } from '../services/workspaceApiService';
 import { trackWorkspaceApiCall } from '../services/storageService';
 
@@ -79,8 +80,8 @@ export const GoogleDriveImportModal: React.FC<GoogleDriveImportModalProps> = ({
         {/* Header */}
         <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#1a1a28]">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
-              <HardDrive className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center p-1.5">
+              <GoogleDriveIcon className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-white flex items-center space-x-2">
@@ -148,7 +149,7 @@ export const GoogleDriveImportModal: React.FC<GoogleDriveImportModalProps> = ({
             </div>
           ) : files.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center text-neutral-400 space-y-2">
-              <HardDrive className="w-8 h-8 text-neutral-600" />
+              <GoogleDriveIcon className="w-8 h-8 opacity-40" />
               <p className="text-xs font-medium">No files found in Google Drive</p>
               <p className="text-[11px] text-neutral-500 max-w-xs">
                 Try a different search keyword or upload files to your Drive first.

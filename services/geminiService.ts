@@ -1,5 +1,5 @@
 import { GoogleGenAI, HarmBlockThreshold, HarmCategory, Type, Modality, ThinkingLevel } from "@google/genai";
-import { VirtualModel, Message, AgentActionItem } from "../types";
+import { VirtualModel, Message, AgentActionItem, ChatSession } from "../types";
 import { getPersonalizationConfig, buildPersonalizationSystemInstruction } from "./personalizationService";
 import { getActiveWorkspaceDeclarations, executeWorkspaceTool } from "./workspaceToolService";
 
@@ -34,47 +34,139 @@ export const normalizeModelName = (modelName?: string): string => {
   return modelName;
 };
 
-// --- TTS Audio Helpers ---
+// --- TTS Audio Helpers with Gemini Voice Models (gemini-3.8-flash-lite-tts) ---
 
-const decodeAudioData = async (
+export const GEMINI_VOICES = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede', 'Calliope', 'Leda'] as const;
+export type GeminiVoiceName = typeof GEMINI_VOICES[number];
+
+export const decodePCM16AudioData = (
   base64Data: string,
-  audioContext: AudioContext
-): Promise<AudioBuffer> => {
-  const binaryString = atob(base64Data);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  
-  const dataInt16 = new Int16Array(bytes.buffer);
-  const numChannels = 1;
-  const sampleRate = 24000;
-  const frameCount = dataInt16.length / numChannels;
-  
-  const buffer = audioContext.createBuffer(numChannels, frameCount, sampleRate);
-  
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      // Convert Int16 to Float32
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+  audioContext: AudioContext,
+  sampleRate: number = 24000
+): AudioBuffer | null => {
+  try {
+    const binaryString = atob(base64Data);
+    const len = binaryString.length;
+    const alignedLen = len - (len % 2);
+    const bytes = new Uint8Array(alignedLen);
+    for (let i = 0; i < alignedLen; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
     }
+    
+    const dataInt16 = new Int16Array(bytes.buffer, bytes.byteOffset, alignedLen / 2);
+    const numChannels = 1;
+    const frameCount = dataInt16.length;
+    const buffer = audioContext.createBuffer(numChannels, frameCount, sampleRate);
+    const channelData = buffer.getChannelData(0);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i] / 32768.0;
+    }
+    return buffer;
+  } catch (err) {
+    console.warn("PCM16 Audio decode error:", err);
+    return null;
   }
-  return buffer;
 };
 
-export const playTextToSpeech = async (text: string, _voiceName: string = 'Kore'): Promise<void> => {
+/**
+ * High-fidelity neural voice generation using Gemini TTS voice models (gemini-3.8-flash-lite-tts).
+ * Replaces legacy browser speech synthesis with realistic human-grade voices.
+ */
+export const generateSpeechWithGemini = async (
+  text: string,
+  voiceName: string = 'Kore'
+): Promise<string | null> => {
+  const cleanText = text
+    .replace(/\[CORRECTION_AUDIT\].*?\|\|CORRECTION_AUDIT\|\|/gs, '')
+    .replace(/\|\|.*?\|\|/gs, '')
+    .replace(/```[\s\S]*?```/g, ' Code snippet omitted. ')
+    .replace(/[#*`~_]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleanText) return null;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash-lite-tts',
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: cleanText.slice(0, 3500) }]
+        }
+      ],
+      config: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: voiceName || 'Kore' }
+          }
+        }
+      }
+    });
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    return base64Audio || null;
+  } catch (error) {
+    console.warn("Gemini voice model TTS request error:", error);
+    return null;
+  }
+};
+
+let activeTTSAudioContext: AudioContext | null = null;
+let activeTTSSourceNode: AudioBufferSourceNode | null = null;
+
+export const stopTextToSpeech = () => {
+  if (activeTTSSourceNode) {
+    try { activeTTSSourceNode.stop(); } catch (e) {}
+    activeTTSSourceNode = null;
+  }
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+  }
+};
+
+export const playTextToSpeech = async (text: string, voiceName: string = 'Kore'): Promise<void> => {
+  stopTextToSpeech();
+
+  // 1. Prefer Gemini high-fidelity neural voice models
+  try {
+    const base64Audio = await generateSpeechWithGemini(text, voiceName);
+    if (base64Audio && typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!activeTTSAudioContext || activeTTSAudioContext.state === 'closed') {
+        activeTTSAudioContext = new AudioCtx({ sampleRate: 24000 });
+      } else if (activeTTSAudioContext.state === 'suspended') {
+        await activeTTSAudioContext.resume();
+      }
+
+      const buffer = decodePCM16AudioData(base64Audio, activeTTSAudioContext, 24000);
+      if (buffer) {
+        return new Promise<void>((resolve) => {
+          const source = activeTTSAudioContext!.createBufferSource();
+          source.buffer = buffer;
+          source.connect(activeTTSAudioContext!.destination);
+          activeTTSSourceNode = source;
+
+          source.onended = () => {
+            activeTTSSourceNode = null;
+            resolve();
+          };
+          source.start(0);
+        });
+      }
+    }
+  } catch (geminiTtsErr) {
+    console.warn("Gemini neural voice model bypassed, attempting fallback:", geminiTtsErr);
+  }
+
+  // 2. Safe fallback if model API is unreachable or offline
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
-      reject(new Error("Speech synthesis not supported in this environment"));
+      resolve();
       return;
     }
 
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
-
-    // Clean text for better TTS (remove markdown, etc.)
     const cleanText = text
       .replace(/\[CORRECTION_AUDIT\].*?\|\|CORRECTION_AUDIT\|\|/gs, '')
       .replace(/\|\|.*?\|\|/gs, '')
@@ -82,28 +174,16 @@ export const playTextToSpeech = async (text: string, _voiceName: string = 'Kore'
       .trim();
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    
-    // Attempt to find a high-quality voice
-    const voices = window.speechSynthesis.getVoices();
-    // Prefer Google voices or high-quality ones if available
-    const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Premium') || v.name.includes('Enhanced'))) 
-      || voices.find(v => v.lang.startsWith('en'))
-      || voices[0];
-
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-    }
-
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
     utterance.onend = () => resolve();
     utterance.onerror = (e) => {
-      console.error("SpeechSynthesis Error:", e);
-      reject(e);
+      if (e.error === 'interrupted' || e.error === 'canceled') resolve();
+      else reject(e);
     };
-    
+
     window.speechSynthesis.speak(utterance);
   });
 };
@@ -259,6 +339,20 @@ export const generateSingleImage = async (
   }
 };
 
+export const generateImageWithQuality = async (
+  prompt: string,
+  quality: 'Standard' | 'HD' | 'Ultra Pro' | 'Cinema 8K' = 'HD',
+  aspectRatio: '1:1' | '9:16' | '16:9' | '4:3' | '3:4' = '1:1',
+  stylePrompt?: string
+): Promise<string> => {
+  return generateSingleImage({
+    prompt,
+    quality,
+    aspectRatio,
+    stylePrompt
+  });
+};
+
 export const generateBatchImages = async (
   options: GenerateImageOptions,
   count: number = 1
@@ -299,11 +393,11 @@ export const generateBatchImages = async (
 
 export interface EditImageParams {
   imageUrl: string; // data URL or pure base64
-  mode: 'edit_message' | 'remove_object' | 'move_object' | 'perspective_shift' | 'area_select_edit';
+  mode: 'edit_message' | 'remove_object' | 'move_object' | 'perspective_shift' | 'area_select_edit' | 'extend_image' | 'imagine_scene' | string;
   instruction: string;
   targetObject?: string;
   movementDirection?: 'left' | 'center' | 'right' | 'up' | 'down';
-  perspectiveType?: 'right_to_center' | 'left_to_center' | 'wide_angle' | 'low_angle' | 'high_angle' | 'three_quarter' | 'custom_3d_drag';
+  perspectiveType?: string;
   perspectiveAngles?: {
     rotateX: number; // pitch (-45 to 45 deg)
     rotateY: number; // yaw (-45 to 45 deg)
@@ -318,6 +412,9 @@ export interface EditImageParams {
     action: 'remove' | 'modify_or_add' | 'add' | 'modify';
   };
   quality?: 'Standard' | 'HD' | 'Ultra Pro' | 'Cinema 8K';
+  gestureMaskBase64?: string;
+  extendDirection?: string;
+  extendRatio?: string;
 }
 
 export const editImageWithAI = async (params: EditImageParams): Promise<string> => {
@@ -1115,19 +1212,21 @@ FORMAT: ||CORRECTION_AUDIT|| {"targetClaimSummary": "1-2 sentence summary of cla
 /**
  * Generates an executive AI summary of a chat session out-of-context
  */
-export const generateChatSummary = async (session: ChatSession, modelName?: string): Promise<string> => {
-  if (!session || !session.messages || session.messages.length === 0) {
+export const generateChatSummary = async (sessionOrMessages: ChatSession | Message[], modelName?: string): Promise<string> => {
+  const messages = Array.isArray(sessionOrMessages) ? sessionOrMessages : (sessionOrMessages?.messages || []);
+  const title = Array.isArray(sessionOrMessages) ? 'Conversation' : (sessionOrMessages?.title || 'Untitled');
+  if (!messages || messages.length === 0) {
     return 'This conversation has no messages yet to summarize.';
   }
 
-  const conversationTranscript = session.messages
+  const conversationTranscript = messages
     .filter(m => m.content && m.content.trim())
     .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
     .join('\n\n');
 
   const summaryPrompt = `Please analyze this conversation and generate a structured, executive AI summary:
 
-CONVERSATION TITLE: "${session.title || 'Untitled'}"
+CONVERSATION TITLE: "${title}"
 CONVERSATION TRANSCRIPT:
 ${conversationTranscript}
 

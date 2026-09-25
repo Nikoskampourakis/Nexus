@@ -226,3 +226,34 @@ body {
 .markdown-body a:hover {
   color: #7dd3fc;
 }
+
+/* System-Wide Wallpaper & Glassmorphism Styling */
+:root {
+  --wallpaper-overlay-opacity: 0.45;
+  --wallpaper-blur: 0px;
+  --card-glass-opacity: 0.85;
+}
+
+.has-system-wallpaper {
+  background-image: var(--wallpaper-image) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-attachment: fixed !important;
+  background-repeat: no-repeat !important;
+}
+
+.has-system-wallpaper body,
+.has-system-wallpaper #root {
+  background: transparent !important;
+}
+
+.wallpaper-overlay {
+  background-color: rgba(0, 0, 0, var(--wallpaper-overlay-opacity, 0.45));
+  backdrop-filter: blur(var(--wallpaper-blur, 0px));
+}
+
+.glass-card {
+  background-color: color-mix(in srgb, var(--card-bg) calc(var(--card-glass-opacity, 0.85) * 100%), transparent) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}

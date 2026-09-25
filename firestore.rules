@@ -1,37 +1,81 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper to check if user is authenticated
-    function isAuthenticated() {
+    
+    // Default Deny All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // Helper to check if user owns the document
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    // User profiles
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // User settings & profiles
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && isOwner(userId);
+      allow read, write: if isValidId(userId) && isOwner(userId);
     }
 
     // Chat sessions
     match /chatSessions/{sessionId} {
-      allow read, write: if isAuthenticated() && isOwner(resource.data.userId || request.resource.data.userId);
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow get, delete: if isValidId(sessionId) && isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(sessionId) && isSignedIn() && isOwner(incoming().userId) && 
+                    incoming().title is string && incoming().title.size() <= 256;
+      allow update: if isValidId(sessionId) && isSignedIn() && isOwner(existing().userId) && 
+                    incoming().userId == existing().userId;
     }
 
     // Chat folders
     match /chatFolders/{folderId} {
-      allow read, write: if isAuthenticated() && isOwner(resource.data.userId || request.resource.data.userId);
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow get, delete: if isValidId(folderId) && isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(folderId) && isSignedIn() && isOwner(incoming().userId) && 
+                    incoming().name is string && incoming().name.size() <= 128;
+      allow update: if isValidId(folderId) && isSignedIn() && isOwner(existing().userId) && 
+                    incoming().userId == existing().userId;
     }
 
     // Virtual models
     match /virtualModels/{modelId} {
-      allow read, write: if isAuthenticated() && isOwner(resource.data.userId || request.resource.data.userId);
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow get, delete: if isValidId(modelId) && isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(modelId) && isSignedIn() && isOwner(incoming().userId) && 
+                    incoming().name is string && incoming().name.size() <= 128;
+      allow update: if isValidId(modelId) && isSignedIn() && isOwner(existing().userId) && 
+                    incoming().userId == existing().userId;
+    }
+
+    // Image creations (Styles, Imagine Scenes, Remove Objects, Extend, Perspective)
+    match /imageCreations/{creationId} {
+      allow get, delete: if isValidId(creationId) && isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(creationId) && isSignedIn() && isOwner(incoming().userId) && 
+                    incoming().prompt is string && incoming().prompt.size() <= 4096;
+      allow update: if isValidId(creationId) && isSignedIn() && isOwner(existing().userId) && 
+                    incoming().userId == existing().userId;
+    }
+
+    // User statistics
+    match /userStatistics/{userId} {
+      allow read, write: if isValidId(userId) && isOwner(userId);
     }
   }
 }

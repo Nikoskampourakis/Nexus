@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import * as LucideIcons from 'lucide-react';
 import { getIconPackState, saveIconPackState, setIconOverride, removeIconOverride, PRESET_ICON_PACKS } from '../services/iconPackService';
+import { GOOGLE_APP_ICONS } from './GoogleAppIcons';
 
 interface IconPackContextType {
   activePackId: string;
@@ -133,6 +134,19 @@ export const AppIcon: React.FC<AppIconProps> = ({
         onClick={onClick}
         className={`inline-block object-contain rounded transition-all ${className}`}
         style={{ ...dimensionStyle, ...style }}
+      />
+    );
+  }
+
+  // Check if matching official Google workspace icon exists
+  const googleKey = name.toLowerCase().replace(/^google/, '');
+  const GoogleComponent = GOOGLE_APP_ICONS[name.toLowerCase()] || GOOGLE_APP_ICONS[googleKey];
+  if (GoogleComponent) {
+    return (
+      <GoogleComponent
+        className={className}
+        size={size}
+        style={style}
       />
     );
   }
